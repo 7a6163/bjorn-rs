@@ -73,8 +73,13 @@ mod hw {
         }
 
         fn wait_busy(&self) {
-            // V4: 0=idle, 1=busy
+            // V4: 0=idle, 1=busy. Timeout after 10 seconds to prevent hanging.
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
             while self.busy.is_high() {
+                if std::time::Instant::now() > deadline {
+                    tracing::warn!("e-Paper busy timeout (10s)");
+                    return;
+                }
                 thread::sleep(Duration::from_millis(10));
             }
         }
@@ -156,6 +161,17 @@ mod hw {
         /// Full display update.
         pub fn display(&mut self, buf: &[u8]) {
             self.send_command(0x24);
+            self.send_data_bulk(buf);
+            self.turn_on_display();
+        }
+
+        /// Write base image to both RAM banks (0x24 and 0x26).
+        /// Must be called before `display_partial()` — matches
+        /// epd2in13_V4.py `displayPartBaseImage()`.
+        pub fn display_base_image(&mut self, buf: &[u8]) {
+            self.send_command(0x24); // Write to RAM bank 1
+            self.send_data_bulk(buf);
+            self.send_command(0x26); // Write to RAM bank 2 (partial reference)
             self.send_data_bulk(buf);
             self.turn_on_display();
         }

@@ -204,13 +204,22 @@ impl NetworkScanner {
             .await;
 
         let output = match output {
-            Ok(o) if o.status.success() => o,
             Ok(o) => {
-                tracing::error!(
-                    stderr = %String::from_utf8_lossy(&o.stderr),
-                    "nmap -sn failed"
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                let stderr = String::from_utf8_lossy(&o.stderr);
+                tracing::debug!(
+                    exit_code = ?o.status.code(),
+                    stdout_len = stdout.len(),
+                    "nmap -sn output"
                 );
-                return vec![];
+                if !stderr.is_empty() {
+                    tracing::warn!(stderr = %stderr, "nmap stderr");
+                }
+                if !o.status.success() {
+                    tracing::error!(exit_code = ?o.status.code(), "nmap -sn failed");
+                    // Still try to parse — nmap sometimes returns non-zero but has results
+                }
+                o
             }
             Err(e) => {
                 tracing::error!(%e, "failed to run nmap");
@@ -219,7 +228,9 @@ impl NetworkScanner {
         };
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        parse_nmap_sn_output(&stdout)
+        let results = parse_nmap_sn_output(&stdout);
+        tracing::info!(hosts_found = results.len(), "nmap parse complete");
+        results
     }
 
     /// Resolve MAC address for an IP using the ARP table.

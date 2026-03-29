@@ -160,9 +160,25 @@ async fn main() -> anyhow::Result<()> {
     // Trigger graceful shutdown
     state.shutdown.cancel();
 
-    // Wait for all tasks to finish
-    let _ = tokio::join!(orchestrator_handle, display_handle, web_handle);
-    tracing::info!("bjorn stopped");
+    // Force exit on second Ctrl+C
+    tokio::spawn(async {
+        signal::ctrl_c().await.ok();
+        tracing::warn!("second SIGINT received, forcing exit");
+        std::process::exit(1);
+    });
 
+    // Wait for tasks with a timeout
+    let shutdown_timeout = tokio::time::timeout(
+        Duration::from_secs(10),
+        async {
+            let _ = tokio::join!(orchestrator_handle, display_handle, web_handle);
+        }
+    );
+
+    if shutdown_timeout.await.is_err() {
+        tracing::warn!("shutdown timed out after 10s, forcing exit");
+    }
+
+    tracing::info!("bjorn stopped");
     Ok(())
 }
