@@ -4,20 +4,20 @@
 ![Status](https://img.shields.io/badge/Status-Alpha-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Bjorn 的 Rust 重寫版本 — 一個自主網路掃描、弱點評估與攻擊性安全工具，專為 Raspberry Pi + 2.13 吋 e-Paper HAT 設計。
+Rust rewrite of Bjorn — an autonomous network scanning, vulnerability assessment, and offensive security tool designed for Raspberry Pi + 2.13" e-Paper HAT.
 
 > **Rewrite of [infinition/Bjorn](https://github.com/infinition/Bjorn) (Python) in Rust for better performance on constrained hardware.**
 
 ## Why Rust?
 
-| | Python 版 | Rust 版 |
+| | Python Version | Rust Version |
 |---|---|---|
-| 部署大小 | ~100MB (runtime + deps) | **6.7MB** (單一 binary) |
-| 啟動時間 | ~10-15 秒 | **< 3 秒** |
-| 記憶體 | ~100MB+ (pandas, etc.) | **< 50MB** |
-| 並發模型 | threading + GIL | tokio async |
-| 資料庫 | CSV (無並發保護) | SQLite WAL (ACID) |
-| 部署方式 | pip install + 大量依賴 | scp 一個檔案 |
+| Deploy Size | ~100MB (runtime + deps) | **6.7MB** (single binary) |
+| Startup Time | ~10-15 seconds | **< 3 seconds** |
+| Memory | ~100MB+ (pandas, etc.) | **< 50MB** |
+| Concurrency Model | threading + GIL | tokio async |
+| Database | CSV (no concurrency protection) | SQLite WAL (ACID) |
+| Deployment | pip install + many dependencies | scp a single file |
 | Actions | 12 | **18** (+PostgreSQL, MongoDB, Redis) |
 
 ## Features
@@ -28,7 +28,7 @@ Bjorn 的 Rust 重寫版本 — 一個自主網路掃描、弱點評估與攻擊
 - **Data Exfiltration** — SFTP, FTP download, SQL dump, SMB share grab, Redis dump
 - **e-Paper Display** — Waveshare 2.13" V4, real-time Tamagotchi-style UI
 - **Web Interface** — port 8000, config management, live monitoring, loot viewer
-- **Headless Mode** — 沒有 e-Paper 也能跑（只輸出 PNG 給 Web UI）
+- **Headless Mode** — runs without e-Paper (outputs PNG for Web UI only)
 
 ## Supported Hardware
 
@@ -50,16 +50,16 @@ Bjorn 的 Rust 重寫版本 — 一個自主網路掃描、弱點評估與攻擊
 ### Install on Pi
 
 ```bash
-# 從 release 下載 binary（或自行編譯，見下方）
+# Download binary from release (or build from source, see below)
 scp bjorn-aarch64 bjorn@<PI_IP>:/home/bjorn/bjorn
 scp -r deploy/ bjorn@<PI_IP>:/home/bjorn/deploy/
 
-# SSH 進 Pi
+# SSH into the Pi
 ssh bjorn@<PI_IP>
 chmod +x /home/bjorn/bjorn
 sudo /home/bjorn/deploy/install.sh
 
-# 啟動
+# Start
 sudo systemctl start bjorn.service
 ```
 
@@ -72,15 +72,15 @@ sudo BJORN_ROOT=/home/bjorn/Bjorn RUST_LOG=bjorn=debug /home/bjorn/bjorn
 ### Service Control
 
 ```bash
-sudo systemctl start bjorn.service     # 啟動
-sudo systemctl stop bjorn.service      # 停止
-sudo systemctl status bjorn.service    # 狀態
-sudo journalctl -u bjorn.service -f    # 即時 log
+sudo systemctl start bjorn.service     # Start
+sudo systemctl stop bjorn.service      # Stop
+sudo systemctl status bjorn.service    # Status
+sudo journalctl -u bjorn.service -f    # Live logs
 ```
 
 ### Web UI
 
-瀏覽器開啟 `http://<PI_IP>:8000`
+Open `http://<PI_IP>:8000` in your browser.
 
 ## Build from Source
 
@@ -141,44 +141,44 @@ src/
 
 ### How It Works
 
-1. **Startup** — 載入設定、開啟 SQLite KB、啟動 3 個 async task
-2. **Network Scan** — `nmap -sn` 發現主機 → async TCP port scan → 寫入 KB
-3. **Orchestrator Loop** — 遍歷 alive hosts → port 匹配 → parent 依賴檢查 → 重試延遲 → 執行 action
-4. **Brute Force** — 載入 wordlist → 並發嘗試所有帳密組合 → 成功寫入 credentials 表
-5. **Exfiltration** — 用破解的帳密連線 → 搜尋/下載目標檔案
-6. **Display** — 每秒渲染 UI → SPI 送到 e-Paper → 同時存 PNG 給 Web UI
-7. **Web Server** — Axum 提供即時監控、設定管理、戰果查看
+1. **Startup** — Loads config, opens SQLite KB, starts 3 async tasks
+2. **Network Scan** — `nmap -sn` discovers hosts -> async TCP port scan -> writes to KB
+3. **Orchestrator Loop** — Iterates over alive hosts -> port matching -> parent dependency check -> retry delay -> executes action
+4. **Brute Force** — Loads wordlist -> concurrently tries all credential combinations -> writes successful credentials to table
+5. **Exfiltration** — Connects using cracked credentials -> searches/downloads target files
+6. **Display** — Renders UI every second -> sends to e-Paper via SPI -> also saves PNG for Web UI
+7. **Web Server** — Axum provides live monitoring, config management, loot viewing
 
 ### Knowledge Base (SQLite)
 
-取代 Python 版的 CSV，提供 ACID 交易和並發安全：
+Replaces the Python version's CSV files, providing ACID transactions and concurrency safety:
 
-| Table | 用途 |
-|-------|------|
-| `hosts` | 發現的主機（MAC, IP, hostname, ports, alive） |
-| `action_results` | 每次 action 執行結果（成功/失敗 + 時間戳） |
-| `credentials` | 破解的帳密（自動去重） |
-| `vulnerabilities` | 發現的弱點（CVE, severity） |
+| Table | Purpose |
+|-------|---------|
+| `hosts` | Discovered hosts (MAC, IP, hostname, ports, alive) |
+| `action_results` | Result of each action execution (success/failure + timestamp) |
+| `credentials` | Cracked credentials (auto-deduplicated) |
+| `vulnerabilities` | Discovered vulnerabilities (CVE, severity) |
 
 ## Configuration
 
-設定檔位於 `$BJORN_ROOT/config/shared_config.json`，也可以透過 Web UI 修改。
+Config file is located at `$BJORN_ROOT/config/shared_config.json` and can also be modified via the Web UI.
 
-關鍵設定：
+Key settings:
 
-| 設定 | 預設值 | 說明 |
-|------|--------|------|
-| `manual_mode` | `false` | 手動模式（暫停自動掃描） |
-| `scan_interval` | `180` | 掃描間隔（秒） |
-| `scan_vuln_running` | `false` | 是否啟用弱點掃描 |
-| `retry_failed_actions` | `true` | 失敗的 action 是否重試 |
-| `failed_retry_delay` | `600` | 失敗重試延遲（秒） |
-| `portlist` | 42 ports | 要掃描的 port 列表 |
-| `epd_type` | `epd2in13_V4` | e-Paper 螢幕型號 |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `manual_mode` | `false` | Manual mode (pauses automatic scanning) |
+| `scan_interval` | `180` | Scan interval (seconds) |
+| `scan_vuln_running` | `false` | Whether vulnerability scanning is enabled |
+| `retry_failed_actions` | `true` | Whether to retry failed actions |
+| `failed_retry_delay` | `600` | Failed retry delay (seconds) |
+| `portlist` | 42 ports | List of ports to scan |
+| `epd_type` | `epd2in13_V4` | e-Paper display model |
 
 ## System Dependencies
 
-安裝腳本 (`deploy/install.sh`) 會自動安裝，或手動：
+The install script (`deploy/install.sh`) installs these automatically, or install manually:
 
 ```bash
 sudo apt-get install -y nmap smbclient sshpass wget zip \
