@@ -1,5 +1,6 @@
 /target
 /dist
+.cargo/
 *.swp
 *.swo
 .DS_Store
