@@ -1,0 +1,21 @@
+[Unit]
+Description=Bjorn - Autonomous Network Security Scanner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=BJORN_ROOT=/home/bjorn/Bjorn
+Environment=RUST_LOG=bjorn=info
+ExecStart=/home/bjorn/bjorn
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+# Resource limits for Pi Zero
+LimitNOFILE=65535
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

@@ -45,6 +45,14 @@ russh = "0.58"
 # FTP client
 suppaftp = { version = "6", features = ["async-rustls"] }
 
+# Display rendering
+image = "0.25"
+imageproc = "0.25"
+ab_glyph = "0.2"
+
+# GPIO/SPI for e-Paper (only compiles on Linux/Pi)
+[target.'cfg(target_os = "linux")'.dependencies]
+rppal = "0.22"
 
 [dev-dependencies]
 tempfile = "3"

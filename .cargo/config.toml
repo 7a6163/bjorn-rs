@@ -1,9 +1,22 @@
-# Cross-compilation for Raspberry Pi Zero W (ARMv6)
-# Uncomment the target section when building for Pi Zero
-# Requires: arm-linux-gnueabihf-gcc toolchain
+# Cross-compilation targets for Raspberry Pi
+#
+# Pi Zero W (ARMv6, 32-bit):
+#   cargo build --release --target arm-unknown-linux-gnueabihf
+#
+# Pi Zero W2 / Pi 3/4/5 (ARMv7/ARMv8, 64-bit):
+#   cargo build --release --target aarch64-unknown-linux-gnu
+#
+# Install toolchains:
+#   rustup target add arm-unknown-linux-gnueabihf
+#   rustup target add aarch64-unknown-linux-gnu
+#
+# On macOS, install cross-linkers via:
+#   brew install arm-linux-gnueabihf-binutils
+#   brew install aarch64-unknown-linux-gnu
+# Or use `cross` (Docker-based): cargo install cross
 
-# [target.arm-unknown-linux-gnueabihf]
-# linker = "arm-linux-gnueabihf-gcc"
+[target.arm-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
 
-# [build]
-# target = "arm-unknown-linux-gnueabihf"
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"

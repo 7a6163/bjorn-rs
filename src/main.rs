@@ -88,11 +88,9 @@ async fn orchestrator_task(state: Arc<AppState>) {
     orch.run().await;
 }
 
-/// Display task placeholder — will be implemented in Phase 2.
+/// Display task — renders to e-Paper HAT and saves PNG for web UI.
 async fn display_task(state: Arc<AppState>) {
-    tracing::info!("display task started — awaiting Phase 2 implementation");
-    state.shutdown.cancelled().await;
-    tracing::info!("display task shutting down");
+    display::run(state).await;
 }
 
 /// Web server task.

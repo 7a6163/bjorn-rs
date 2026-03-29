@@ -1,0 +1,7 @@
+[target.arm-unknown-linux-gnueabihf]
+# Pi Zero W (ARMv6)
+image = "ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main"
+
+[target.aarch64-unknown-linux-gnu]
+# Pi Zero W2 / Pi 3/4/5
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
