@@ -1,0 +1,9 @@
+# Cross-compilation for Raspberry Pi Zero W (ARMv6)
+# Uncomment the target section when building for Pi Zero
+# Requires: arm-linux-gnueabihf-gcc toolchain
+
+# [target.arm-unknown-linux-gnueabihf]
+# linker = "arm-linux-gnueabihf-gcc"
+
+# [build]
+# target = "arm-unknown-linux-gnueabihf"
