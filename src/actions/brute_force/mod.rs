@@ -106,7 +106,7 @@ impl<C: Connector> BruteForceAction<C> {
                     };
                 }
 
-                let _permit = semaphore.acquire().await.unwrap();
+                let _permit = semaphore.acquire().await.expect("semaphore closed");
                 let success = self
                     .connector
                     .try_connect(&target.ip, self.target_port, user, password)

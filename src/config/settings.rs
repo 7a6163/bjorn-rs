@@ -17,7 +17,7 @@ pub struct BjornConfig {
     #[serde(default = "default_true")]
     pub websrv: bool,
 
-    #[serde(default, rename = "web_increment ")]
+    #[serde(default, alias = "web_increment ")]
     pub web_increment: bool,
 
     #[serde(default = "default_true")]
@@ -158,7 +158,7 @@ pub struct BjornConfig {
     #[serde(default = "default_llm_provider")]
     pub llm_api_provider: String,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub llm_api_key: String,
 
     #[serde(default = "default_llm_model")]

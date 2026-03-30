@@ -181,7 +181,7 @@ pub async fn execute_tool(
                                 "host_id": c.host_id,
                                 "protocol": c.protocol,
                                 "username": c.username,
-                                "password": c.password,
+                                "password": "***REDACTED***",
                                 "port": c.port,
                             })
                         })

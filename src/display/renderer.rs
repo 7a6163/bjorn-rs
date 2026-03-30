@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use ab_glyph::{FontRef, PxScale};
 use image::{GrayImage, Luma};
 use imageproc::drawing::{draw_line_segment_mut, draw_text_mut};
@@ -12,11 +14,12 @@ const REF_HEIGHT: f32 = 250.0;
 const BLACK: Luma<u8> = Luma([0u8]);
 const WHITE: Luma<u8> = Luma([255u8]);
 
-/// Embedded DejaVu Sans Mono font (free license, ~300KB).
+/// Embedded font (parsed once at startup via OnceLock).
 const FONT_BYTES: &[u8] = include_bytes!("../../resources/fonts/DejaVuSansMono.ttf");
+static FONT: OnceLock<FontRef<'static>> = OnceLock::new();
 
-fn load_font() -> FontRef<'static> {
-    FontRef::try_from_slice(FONT_BYTES).expect("failed to load embedded font")
+fn load_font() -> &'static FontRef<'static> {
+    FONT.get_or_init(|| FontRef::try_from_slice(FONT_BYTES).expect("failed to load embedded font"))
 }
 
 /// Render a complete display frame matching the Python `display.py` layout.
@@ -33,7 +36,7 @@ pub fn render_frame(
     let sy = height as f32 / REF_HEIGHT;
 
     let mut img = GrayImage::from_pixel(width, height, WHITE);
-    let font = load_font();
+    let font: &FontRef = load_font();
 
     let scale_9 = PxScale::from(9.0 * sy);
     let scale_11 = PxScale::from(11.0 * sy);

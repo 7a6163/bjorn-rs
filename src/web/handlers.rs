@@ -169,13 +169,22 @@ async fn find_latest_result_file(dir: &std::path::Path) -> Option<PathBuf> {
     latest.map(|(p, _)| p)
 }
 
+/// Escape HTML special characters to prevent XSS.
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
+}
+
 fn csv_to_html_table(csv_content: &str) -> String {
     let mut html = String::from(r#"<table class="styled-table"><thead><tr>"#);
     let mut lines = csv_content.lines();
 
     if let Some(header_line) = lines.next() {
         for header in header_line.split(',') {
-            html.push_str(&format!("<th>{header}</th>"));
+            html.push_str(&format!("<th>{}</th>", html_escape(header)));
         }
     }
     html.push_str("</tr></thead><tbody>");
@@ -184,7 +193,7 @@ fn csv_to_html_table(csv_content: &str) -> String {
         html.push_str("<tr>");
         for cell in line.split(',') {
             let class = if cell.trim().is_empty() { "red" } else { "green" };
-            html.push_str(&format!(r#"<td class="{class}">{cell}</td>"#));
+            html.push_str(&format!(r#"<td class="{class}">{}</td>"#, html_escape(cell)));
         }
         html.push_str("</tr>");
     }
@@ -472,9 +481,26 @@ pub async fn save_config(
         Err(e) => return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
     };
 
-    // Merge incoming params into current config
+    // Merge incoming params into current config — only accept known fields.
+    // Reject sensitive fields that should not be set via the web UI.
+    let blocked_keys = ["llm_api_key"];
     if let (Some(current_obj), Some(params_obj)) = (current.as_object_mut(), params.as_object()) {
+        // Validate: deserialize to BjornConfig to ensure only known fields are accepted
+        let test_merge = {
+            let mut test = current_obj.clone();
+            for (key, value) in params_obj {
+                test.insert(key.clone(), value.clone());
+            }
+            serde_json::from_value::<crate::config::BjornConfig>(serde_json::Value::Object(test))
+        };
+        if let Err(e) = test_merge {
+            return err_response(StatusCode::BAD_REQUEST, format!("invalid config: {e}"));
+        }
+
         for (key, value) in params_obj {
+            if blocked_keys.contains(&key.as_str()) {
+                continue; // Skip sensitive fields
+            }
             current_obj.insert(key.clone(), value.clone());
         }
     }
@@ -499,6 +525,18 @@ pub struct WifiParams {
 }
 
 pub async fn connect_wifi(Json(params): Json<WifiParams>) -> impl IntoResponse {
+    // Sanitize: reject newlines/control chars that could inject nmconnection sections
+    if params.ssid.contains('\n')
+        || params.ssid.contains('\r')
+        || params.password.contains('\n')
+        || params.password.contains('\r')
+    {
+        return err_response(
+            StatusCode::BAD_REQUEST,
+            "SSID and password must not contain newlines",
+        );
+    }
+
     let nmconnection = format!(
         r#"[connection]
 id=preconfigured

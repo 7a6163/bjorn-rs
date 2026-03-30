@@ -120,12 +120,33 @@ async fn steal_via_ssh(
     }
 
     let mut count = 0;
+    let local_dir_canonical = local_dir.canonicalize().unwrap_or_else(|_| local_dir.to_path_buf());
+
     for remote_file in &matching {
-        // Determine local path preserving directory structure
-        let rel_path = remote_file.trim_start_matches('/');
-        let local_path = local_dir.join(rel_path);
+        // Strip path traversal components and build safe local path
+        let sanitized: std::path::PathBuf = remote_file
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|c| !c.is_empty() && *c != ".." && *c != ".")
+            .collect();
+        let local_path = local_dir.join(&sanitized);
+
+        // Verify the resolved path stays within the output directory
+        if let Ok(canonical) = local_path.canonicalize() {
+            if !canonical.starts_with(&local_dir_canonical) {
+                tracing::warn!(path = %remote_file, "path traversal blocked");
+                continue;
+            }
+        }
+        // For new files (not yet on disk), check the parent
         if let Some(parent) = local_path.parent() {
             let _ = tokio::fs::create_dir_all(parent).await;
+            if let Ok(parent_canonical) = parent.canonicalize() {
+                if !parent_canonical.starts_with(&local_dir_canonical) {
+                    tracing::warn!(path = %remote_file, "path traversal blocked");
+                    continue;
+                }
+            }
         }
 
         let status = tokio::process::Command::new("sshpass")
