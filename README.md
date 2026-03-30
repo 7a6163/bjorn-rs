@@ -18,17 +18,62 @@ Rust rewrite of Bjorn — an autonomous network scanning, vulnerability assessme
 | Concurrency Model | threading + GIL | tokio async |
 | Database | CSV (no concurrency protection) | SQLite WAL (ACID) |
 | Deployment | pip install + many dependencies | scp a single file |
-| Actions | 12 | **18** (+PostgreSQL, MongoDB, Redis) |
+| Actions | 12 | **27** (+PostgreSQL, MongoDB, Redis, SNMP, VNC, MQTT, HTTP) |
 
 ## Features
 
 - **Network Scanning** — nmap host discovery + async TCP port scan
 - **Vulnerability Assessment** — nmap + vulners.nse script
-- **Brute Force** — SSH, FTP, Telnet, SMB, RDP, MySQL, PostgreSQL, MongoDB, Redis
-- **Data Exfiltration** — SFTP, FTP download, SQL dump, SMB share grab, Redis dump
+- **Brute Force** — 14 protocol connectors (see [Attack Modules](#attack-modules))
+- **Data Exfiltration** — 13 data theft modules triggered after successful brute force
+- **LLM Integration** — Ollama / Anthropic / OpenAI cascade with agentic tool-calling
+- **Sentinel Watchdog** — detects new devices, ARP spoofing, port changes (zero extra traffic)
 - **e-Paper Display** — Waveshare 2.13" V4, real-time Tamagotchi-style UI
 - **Web Interface** — port 8000, config management, live monitoring, loot viewer
 - **Headless Mode** — runs without e-Paper (outputs PNG for Web UI only)
+
+## Attack Modules
+
+### Brute Force (14 modules)
+
+| Module | Port | Protocol | Implementation |
+|--------|------|----------|----------------|
+| SSHBruteforce | 22 | SSH | russh (pure Rust) |
+| FTPBruteforce | 21 | FTP | suppaftp (pure Rust) |
+| TelnetBruteforce | 23 | Telnet | raw TCP (pure Rust) |
+| SQLBruteforce | 3306 | MySQL | mysql CLI |
+| PostgresBruteforce | 5432 | PostgreSQL | psql CLI |
+| MongoBruteforce | 27017 | MongoDB | mongosh CLI |
+| RedisBruteforce | 6379 | Redis | raw TCP RESP (pure Rust) |
+| SMBBruteforce | 445 | SMB | smbclient CLI |
+| RDPBruteforce | 3389 | RDP | xfreerdp CLI |
+| SNMPBruteforce | 161 | SNMP v2c | raw UDP (pure Rust) |
+| VNCBruteforce | 5900 | VNC/RFB | raw TCP + DES (pure Rust) |
+| MQTTBruteforce | 1883 | MQTT | raw TCP (pure Rust) |
+| HTTPBruteforce | 80 | HTTP Basic | raw TCP (pure Rust) |
+| HTTPBruteforce8080 | 8080 | HTTP Basic | raw TCP (pure Rust) |
+
+All modules use the generic `BruteForceAction<C: Connector>` framework — each connector only implements a single `try_connect()` method.
+
+### Data Exfiltration (13 modules)
+
+| Module | Trigger | Method |
+|--------|---------|--------|
+| StealFilesSSH | SSHBruteforce | sshpass + scp |
+| StealFilesFTP | FTPBruteforce | wget recursive |
+| StealFilesTelnet | TelnetBruteforce | remote find via shell |
+| StealDataSQL | SQLBruteforce | mysql CLI table dump |
+| StealDataPostgres | PostgresBruteforce | psql COPY to CSV |
+| StealDataMongo | MongoBruteforce | mongodump |
+| StealDataRedis | RedisBruteforce | redis-cli --rdb / KEYS dump |
+| StealFilesSMB | SMBBruteforce | smbget |
+| StealFilesRDP | RDPBruteforce | xfreerdp drive mapping |
+| StealDataSNMP | SNMPBruteforce | snmpwalk (system, interfaces, ARP, routes) |
+| StealDataMQTT | MQTTBruteforce | mosquitto_sub (subscribe to all topics) |
+| StealDataHTTP | HTTPBruteforce | scrape authenticated admin pages |
+| StealDataHTTP8080 | HTTPBruteforce8080 | scrape authenticated admin pages |
+
+Exfiltration modules are child actions — they only run after their parent brute-force module succeeds.
 
 ## Supported Hardware
 
@@ -118,25 +163,21 @@ src/
 ├── actions/
 │   ├── scanning.rs             # nmap -sn + async TCP port scan
 │   ├── vuln_scanner.rs         # nmap --script vulners.nse
-│   ├── brute_force/            # Generic framework + 9 protocol connectors
-│   │   ├── mod.rs              # BruteForceAction<C: Connector>
-│   │   ├── ssh.rs              # russh (pure Rust)
-│   │   ├── ftp.rs              # suppaftp (pure Rust)
-│   │   ├── telnet.rs           # raw TCP (pure Rust)
-│   │   ├── sql.rs              # mysql CLI
-│   │   ├── postgres.rs         # psql CLI
-│   │   ├── mongo.rs            # mongosh CLI
-│   │   ├── redis.rs            # raw TCP RESP protocol (pure Rust)
-│   │   ├── smb.rs              # smbclient CLI
-│   │   └── rdp.rs              # xfreerdp CLI
-│   └── exfiltrate/             # 9 data theft modules (child actions)
+│   ├── brute_force/            # Generic framework + 14 protocol connectors
+│   │   └── mod.rs              # BruteForceAction<C: Connector>
+│   └── exfiltrate/             # 13 data theft modules (child actions)
 ├── orchestrator/               # Main loop, action scheduling, retry logic
+├── llm/
+│   ├── bridge.rs               # LLM backend cascade (Ollama → API → fallback)
+│   ├── orchestrator.rs         # LLM decision modes (none/advisor/autonomous)
+│   └── tools.rs                # 7 LLM tools (get_hosts, run_action, etc.)
+├── sentinel/                   # Network watchdog (new devices, ARP spoof, port changes)
 ├── display/
 │   ├── epd_v4.rs               # Waveshare 2.13" V4 SPI driver (rppal)
 │   └── renderer.rs             # UI rendering (imageproc + ab_glyph)
 └── web/
     ├── server.rs               # Axum (port 8000, gzip, static files)
-    └── handlers.rs             # 25+ API endpoints
+    └── handlers.rs             # 30+ API endpoints
 ```
 
 ### How It Works
@@ -173,7 +214,7 @@ Key settings:
 | `scan_vuln_running` | `false` | Whether vulnerability scanning is enabled |
 | `retry_failed_actions` | `true` | Whether to retry failed actions |
 | `failed_retry_delay` | `600` | Failed retry delay (seconds) |
-| `portlist` | 42 ports | List of ports to scan |
+| `portlist` | 44 ports | List of ports to scan |
 | `epd_type` | `epd2in13_V4` | e-Paper display model |
 
 ## System Dependencies
@@ -183,7 +224,7 @@ The install script (`deploy/install.sh`) installs these automatically, or instal
 ```bash
 sudo apt-get install -y nmap smbclient sshpass wget zip \
     redis-tools mysql-client postgresql-client xfreerdp2-x11 \
-    network-manager
+    snmp mosquitto-clients network-manager
 ```
 
 ## Disclaimer
