@@ -46,7 +46,7 @@ pub async fn run(state: Arc<AppState>) {
         let orch_status = state.status.read().await.clone();
 
         // Render frame
-        let frame = renderer::render_frame(&display_data, &orch_status, &config);
+        let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
 
         // Save PNG for web UI (always, regardless of hardware)
         if let Err(e) = frame.save(&png_path) {
@@ -101,7 +101,7 @@ fn run_epd_thread(state: Arc<AppState>) {
         let orch_status = state.status.blocking_read().clone();
 
         // Render frame
-        let frame = renderer::render_frame(&display_data, &orch_status, &config);
+        let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
 
         // Apply rotation for V4
         let frame = if screen_reversed {
