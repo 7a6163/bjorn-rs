@@ -7,6 +7,9 @@ pub mod rdp;
 pub mod postgres;
 pub mod mongo;
 pub mod redis;
+pub mod snmp;
+pub mod mqtt;
+pub mod http;
 
 use std::path::PathBuf;
 use std::sync::Arc;

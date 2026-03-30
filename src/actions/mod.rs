@@ -75,6 +75,11 @@ pub fn build_action_registry(_state: &Arc<AppState>) -> Vec<Box<dyn Action>> {
         Box::new(brute_force::postgres::create_action()),
         Box::new(brute_force::mongo::create_action()),
         Box::new(brute_force::redis::create_action()),
+        Box::new(brute_force::snmp::create_action()),
+        Box::new(brute_force::vnc::create_action()),
+        Box::new(brute_force::mqtt::create_action()),
+        Box::new(brute_force::http_basic::create_action()),
+        Box::new(brute_force::http_basic::create_action_8080()),
         // Exfiltration actions (child actions)
         Box::new(exfiltrate::ssh::StealFilesSsh),
         Box::new(exfiltrate::ftp::StealFilesFtp),
@@ -85,5 +90,9 @@ pub fn build_action_registry(_state: &Arc<AppState>) -> Vec<Box<dyn Action>> {
         Box::new(exfiltrate::postgres::StealDataPostgres),
         Box::new(exfiltrate::mongo::StealDataMongo),
         Box::new(exfiltrate::redis::StealDataRedis),
+        Box::new(exfiltrate::snmp::StealDataSnmp),
+        Box::new(exfiltrate::mqtt::StealDataMqtt),
+        Box::new(exfiltrate::http::StealDataHttp),
+        Box::new(exfiltrate::http::StealDataHttp8080),
     ]
 }

@@ -349,8 +349,8 @@ fn default_2_u16() -> u16 {
 fn default_portlist() -> Vec<u16> {
     vec![
         20, 21, 22, 23, 25, 53, 69, 80, 110, 111, 135, 137, 139, 143, 161, 162, 389, 443, 445,
-        512, 513, 514, 587, 636, 993, 995, 1080, 1433, 1521, 2049, 3306, 3389, 5000, 5001, 5432,
-        5900, 6379, 8080, 8443, 9090, 10000, 27017,
+        512, 513, 514, 587, 636, 993, 995, 1080, 1433, 1521, 1883, 2049, 3306, 3389, 5000, 5001, 5432,
+        5900, 6379, 8080, 8443, 9090, 10000, 11211, 27017,
     ]
 }
 
@@ -408,7 +408,7 @@ mod tests {
         assert!(!config.retry_success_actions);
         assert_eq!(config.startup_delay, 10);
         assert_eq!(config.scan_interval, 180);
-        assert_eq!(config.portlist.len(), 42);
+        assert_eq!(config.portlist.len(), 44);
         assert_eq!(config.epd_type, "epd2in13_V4");
         assert_eq!(config.nmap_scan_aggressivity, "-T2");
     }

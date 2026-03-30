@@ -7,6 +7,10 @@ pub mod rdp;
 pub mod postgres;
 pub mod mongo;
 pub mod redis;
+pub mod snmp;
+pub mod vnc;
+pub mod mqtt;
+pub mod http_basic;
 
 use std::sync::Arc;
 use std::time::Duration;
