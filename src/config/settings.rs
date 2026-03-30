@@ -145,6 +145,49 @@ pub struct BjornConfig {
 
     #[serde(default)]
     pub timewait_rdp: u64,
+
+    // -- LLM --
+    #[serde(default)]
+    pub llm_enabled: bool,
+
+    /// LLM orchestrator mode: "none", "advisor", "autonomous"
+    #[serde(default = "default_llm_mode")]
+    pub llm_mode: String,
+
+    /// API provider: "anthropic", "openai", "openrouter"
+    #[serde(default = "default_llm_provider")]
+    pub llm_api_provider: String,
+
+    #[serde(default)]
+    pub llm_api_key: String,
+
+    #[serde(default = "default_llm_model")]
+    pub llm_api_model: String,
+
+    #[serde(default)]
+    pub llm_api_base_url: String,
+
+    #[serde(default = "default_ollama_url")]
+    pub llm_ollama_url: String,
+
+    #[serde(default = "default_ollama_model")]
+    pub llm_ollama_model: String,
+
+    /// Max tokens for LLM responses
+    #[serde(default = "default_llm_max_tokens")]
+    pub llm_max_tokens: u32,
+
+    /// LLM request timeout in seconds
+    #[serde(default = "default_llm_timeout")]
+    pub llm_timeout: u64,
+
+    // -- Sentinel --
+    #[serde(default)]
+    pub sentinel_enabled: bool,
+
+    /// Sentinel check interval in seconds
+    #[serde(default = "default_sentinel_interval")]
+    pub sentinel_interval: u64,
 }
 
 impl BjornConfig {
@@ -236,6 +279,18 @@ impl Default for BjornConfig {
             timewait_ftp: 0,
             timewait_sql: 0,
             timewait_rdp: 0,
+            llm_enabled: false,
+            llm_mode: "none".to_string(),
+            llm_api_provider: "anthropic".to_string(),
+            llm_api_key: String::new(),
+            llm_api_model: "claude-haiku-4-5-20251001".to_string(),
+            llm_api_base_url: String::new(),
+            llm_ollama_url: "http://127.0.0.1:11434".to_string(),
+            llm_ollama_model: "phi3:mini".to_string(),
+            llm_max_tokens: 1024,
+            llm_timeout: 30,
+            sentinel_enabled: false,
+            sentinel_interval: 60,
         }
     }
 }
@@ -313,6 +368,31 @@ fn default_steal_file_extensions() -> Vec<String> {
         ".hack".to_string(),
         ".flag".to_string(),
     ]
+}
+
+fn default_llm_mode() -> String {
+    "none".to_string()
+}
+fn default_llm_provider() -> String {
+    "anthropic".to_string()
+}
+fn default_llm_model() -> String {
+    "claude-haiku-4-5-20251001".to_string()
+}
+fn default_ollama_url() -> String {
+    "http://127.0.0.1:11434".to_string()
+}
+fn default_ollama_model() -> String {
+    "phi3:mini".to_string()
+}
+fn default_llm_max_tokens() -> u32 {
+    1024
+}
+fn default_llm_timeout() -> u64 {
+    30
+}
+fn default_sentinel_interval() -> u64 {
+    60
 }
 
 #[cfg(test)]

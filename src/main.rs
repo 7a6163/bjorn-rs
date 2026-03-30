@@ -2,8 +2,10 @@ mod actions;
 mod config;
 mod display;
 mod error;
+mod llm;
 mod logging;
 mod orchestrator;
+mod sentinel;
 mod state;
 mod web;
 
@@ -103,6 +105,18 @@ async fn web_task(state: Arc<AppState>) {
     web::run(state).await;
 }
 
+/// LLM autonomous task (only active when llm_mode = "autonomous").
+async fn llm_task(state: Arc<AppState>) {
+    let llm_orch = llm::orchestrator::LlmOrchestrator::new(Arc::clone(&state));
+    llm_orch.run_autonomous().await;
+}
+
+/// Sentinel network watchdog task.
+async fn sentinel_task(state: Arc<AppState>) {
+    let mut engine = sentinel::SentinelEngine::new(Arc::clone(&state));
+    engine.run().await;
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Determine root directory: BJORN_ROOT env var or default
@@ -137,10 +151,12 @@ async fn main() -> anyhow::Result<()> {
     // Build shared state
     let state = AppState::new(config, paths, kb);
 
-    // Spawn the three main tasks
+    // Spawn all tasks
     let orchestrator_handle = tokio::spawn(orchestrator_task(Arc::clone(&state)));
     let display_handle = tokio::spawn(display_task(Arc::clone(&state)));
     let web_handle = tokio::spawn(web_task(Arc::clone(&state)));
+    let llm_handle = tokio::spawn(llm_task(Arc::clone(&state)));
+    let sentinel_handle = tokio::spawn(sentinel_task(Arc::clone(&state)));
 
     // Wait for shutdown signal (Ctrl+C or SIGTERM)
     tokio::select! {
@@ -171,7 +187,13 @@ async fn main() -> anyhow::Result<()> {
     let shutdown_timeout = tokio::time::timeout(
         Duration::from_secs(10),
         async {
-            let _ = tokio::join!(orchestrator_handle, display_handle, web_handle);
+            let _ = tokio::join!(
+                orchestrator_handle,
+                display_handle,
+                web_handle,
+                llm_handle,
+                sentinel_handle,
+            );
         }
     );
 

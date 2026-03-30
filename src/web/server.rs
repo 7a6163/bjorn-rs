@@ -41,6 +41,16 @@ fn build_router(state: Arc<AppState>) -> Router {
         .route("/backup", post(handlers::create_backup))
         .route("/stop_orchestrator", post(handlers::stop_orchestrator))
         .route("/start_orchestrator", post(handlers::start_orchestrator))
+        // -- LLM API routes --
+        .route("/api/llm/chat", post(handlers::llm_chat))
+        .route("/api/llm/status", get(handlers::llm_status))
+        // -- Tool/MCP-compatible routes --
+        .route("/api/tools/hosts", get(handlers::api_get_hosts))
+        .route("/api/tools/vulnerabilities", get(handlers::api_get_vulnerabilities))
+        .route("/api/tools/credentials", get(handlers::api_get_credentials))
+        .route("/api/tools/status", get(handlers::api_get_status))
+        // -- Sentinel routes --
+        .route("/api/sentinel/alerts", get(handlers::sentinel_alerts))
         // -- Middleware --
         .layer(CompressionLayer::new())
         // -- Shared state --

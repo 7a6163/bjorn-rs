@@ -236,11 +236,13 @@ mod hw {
         pub fn new() -> Option<Self> {
             None
         }
-        pub fn init(&self) -> Result<(), String> { Ok(()) }
-        pub fn init_partial(&self) -> Result<(), String> { Ok(()) }
-        pub fn display_partial(&self, _buf: &[u8]) -> Result<(), String> { Ok(()) }
-        pub fn clear(&self) {}
-        pub fn sleep(&self) -> Result<(), String> { Ok(()) }
+        pub fn init(&mut self) -> Result<(), String> { Ok(()) }
+        pub fn init_partial(&mut self) -> Result<(), String> { Ok(()) }
+        pub fn display(&mut self, _buf: &[u8]) {}
+        pub fn display_base_image(&mut self, _buf: &[u8]) {}
+        pub fn display_partial(&mut self, _buf: &[u8]) -> Result<(), String> { Ok(()) }
+        pub fn clear(&mut self) {}
+        pub fn sleep(&mut self) -> Result<(), String> { Ok(()) }
     }
 }
 

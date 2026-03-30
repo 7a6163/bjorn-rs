@@ -685,3 +685,101 @@ pub async fn start_orchestrator(State(state): State<Arc<AppState>>) -> impl Into
     status.manual_mode = false;
     ok("orchestrator starting")
 }
+
+// -- LLM API handlers --
+
+/// POST /api/llm/chat — chat with the LLM
+#[derive(Deserialize)]
+pub struct LlmChatRequest {
+    message: String,
+    #[serde(default)]
+    use_tools: bool,
+}
+
+pub async fn llm_chat(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<LlmChatRequest>,
+) -> impl IntoResponse {
+    let bridge = crate::llm::bridge::LlmBridge::new(Arc::clone(&state));
+    let system = "You are Bjorn, an autonomous cyber-security assistant running on a Raspberry Pi. Help the user understand the network state and suggest actions.";
+
+    match bridge.complete(system, &req.message, req.use_tools).await {
+        Some(response) => Json(serde_json::json!({
+            "status": "success",
+            "response": response,
+        }))
+        .into_response(),
+        None => Json(serde_json::json!({
+            "status": "error",
+            "message": "LLM not available. Check llm_enabled and API key in config.",
+        }))
+        .into_response(),
+    }
+}
+
+/// GET /api/llm/status
+pub async fn llm_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let config = state.config();
+    Json(serde_json::json!({
+        "enabled": config.llm_enabled,
+        "mode": config.llm_mode,
+        "provider": config.llm_api_provider,
+        "model": config.llm_api_model,
+        "ollama_url": config.llm_ollama_url,
+        "ollama_model": config.llm_ollama_model,
+        "has_api_key": !config.llm_api_key.is_empty(),
+    }))
+}
+
+// -- Tool/MCP-compatible API handlers --
+
+/// GET /api/tools/hosts
+pub async fn api_get_hosts(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let inputs = serde_json::json!({"alive_only": true});
+    let result = crate::llm::tools::execute_tool("get_hosts", &inputs, &state).await;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(result))
+        .unwrap()
+}
+
+/// GET /api/tools/vulnerabilities
+pub async fn api_get_vulnerabilities(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let inputs = serde_json::json!({"limit": 100});
+    let result = crate::llm::tools::execute_tool("get_vulnerabilities", &inputs, &state).await;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(result))
+        .unwrap()
+}
+
+/// GET /api/tools/credentials
+pub async fn api_get_credentials(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let inputs = serde_json::json!({});
+    let result = crate::llm::tools::execute_tool("get_credentials", &inputs, &state).await;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(result))
+        .unwrap()
+}
+
+/// GET /api/tools/status
+pub async fn api_get_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let inputs = serde_json::json!({});
+    let result = crate::llm::tools::execute_tool("get_status", &inputs, &state).await;
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(result))
+        .unwrap()
+}
+
+// -- Sentinel handlers --
+
+/// GET /api/sentinel/alerts — placeholder until Sentinel state is shared
+pub async fn sentinel_alerts(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    // TODO: Share SentinelEngine alerts via AppState
+    Json(serde_json::json!({
+        "alerts": [],
+        "note": "Sentinel alerts will be available when sentinel_enabled=true"
+    }))
+}
