@@ -1,13 +1,17 @@
+pub mod comments;
 pub mod epd_v4;
 pub mod renderer;
+pub mod status_images;
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use image::Luma;
 use tokio::time::sleep;
 
 use crate::state::AppState;
+use comments::CommentEngine;
+use status_images::StatusImages;
 
 /// Main display loop.
 ///
@@ -34,6 +38,13 @@ pub async fn run(state: Arc<AppState>) {
 
     tracing::info!(png = %png_path.display(), "display loop starting (headless PNG + EPD thread)");
 
+    // Initialize comment engine
+    let mut comments = CommentEngine::new(
+        &state.paths.comments_json,
+        config.comment_delaymin,
+        config.comment_delaymax,
+    );
+
     let mut frame_count: u64 = 0;
 
     loop {
@@ -41,12 +52,30 @@ pub async fn run(state: Arc<AppState>) {
             break;
         }
 
-        // Read display data
-        let display_data = state.display.read().await.clone();
         let orch_status = state.status.read().await.clone();
 
-        // Render two-layer frame
-        let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
+        // Update comments based on current action
+        let action = if orch_status.current_action.is_empty() {
+            "IDLE"
+        } else {
+            &orch_status.current_action
+        };
+        if let Some(comment) = comments.get_comment(action) {
+            let mut display = state.display.write().await;
+            display.bjorn_says = comment;
+        }
+
+        let display_data = state.display.read().await.clone();
+
+        // Render two-layer frame (no character animation in headless PNG)
+        let frame = renderer::render_frame(
+            &display_data,
+            &orch_status,
+            &config,
+            &state.paths.static_images_dir,
+            None,
+            None,
+        );
 
         // Flatten to single image for PNG (web UI)
         let png_img = renderer::flatten_for_png(&frame);
@@ -90,6 +119,22 @@ fn run_epd_thread(state: Arc<AppState>) {
         tracing::warn!(%e, "e-Paper partial init failed");
     }
 
+    // Load status images (per-action character animations + status icons)
+    let mut status_imgs = StatusImages::new(&state.paths.status_images_dir);
+
+    // Comment engine for the EPD thread
+    let mut comments = CommentEngine::new(
+        &state.paths.comments_json,
+        config.comment_delaymin,
+        config.comment_delaymax,
+    );
+
+    // Image randomizer timer — switch character image periodically
+    let image_delay_min = config.image_display_delaymin;
+    let image_delay_max = config.image_display_delaymax;
+    let mut last_image_change = Instant::now();
+    let mut image_change_interval = rand_duration(image_delay_min, image_delay_max);
+
     let mut frame_count: u64 = 0;
 
     loop {
@@ -98,11 +143,41 @@ fn run_epd_thread(state: Arc<AppState>) {
         }
 
         // Read display data (blocking read on the RwLock)
-        let display_data = state.display.blocking_read().clone();
         let orch_status = state.status.blocking_read().clone();
 
+        // Update comments
+        let action = if orch_status.current_action.is_empty() {
+            "IDLE"
+        } else {
+            &orch_status.current_action
+        };
+        if let Some(comment) = comments.get_comment(action) {
+            let mut display = state.display.blocking_write();
+            display.bjorn_says = comment;
+        }
+
+        let display_data = state.display.blocking_read().clone();
+
+        // Periodically randomize character image
+        if last_image_change.elapsed() >= image_change_interval {
+            status_imgs.randomize_current();
+            last_image_change = Instant::now();
+            image_change_interval = rand_duration(image_delay_min, image_delay_max);
+        }
+
+        // Pick status icon first (immutable borrow), then character (mutable borrow)
+        let status_icon = status_imgs.status_icon(action).cloned();
+        let character_img = status_imgs.pick_character(action).cloned();
+
         // Render two-layer frame
-        let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
+        let frame = renderer::render_frame(
+            &display_data,
+            &orch_status,
+            &config,
+            &state.paths.static_images_dir,
+            character_img.as_ref(),
+            status_icon.as_ref(),
+        );
 
         // Composite: dither icon layer, then stamp crisp text on top
         let buf = composite_to_epd_buffer(&frame, screen_reversed);
@@ -130,6 +205,12 @@ fn run_epd_thread(state: Arc<AppState>) {
     // Sleep the display on shutdown
     let _ = epd.sleep();
     tracing::info!("EPD thread stopped");
+}
+
+fn rand_duration(min_secs: u64, max_secs: u64) -> Duration {
+    let mut rng = rand::rng();
+    let secs = rand::Rng::random_range(&mut rng, min_secs..=max_secs);
+    Duration::from_secs(secs)
 }
 
 /// Composite two-layer frame into EPD buffer:

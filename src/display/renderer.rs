@@ -77,11 +77,19 @@ pub struct RenderedFrame {
 /// Returns two layers: an icon layer (grayscale, for dithering) and a text
 /// mask (crisp black/white). The caller composites them so icons get gradients
 /// while text stays sharp — matching Python PIL's 1-bit text behavior.
+///
+/// `character_img` — optional animated character image for the bottom area
+/// (loaded from status image series). Falls back to static `bjorn1.bmp`.
+///
+/// `status_icon` — optional per-action icon for the y=60 status area.
+/// Falls back to the static `attack.bmp` icon.
 pub fn render_frame(
     display: &DisplayData,
     status: &OrchestratorStatus,
     config: &BjornConfig,
     static_images_dir: &Path,
+    character_img: Option<&GrayImage>,
+    status_icon: Option<&GrayImage>,
 ) -> RenderedFrame {
     let width = EPD_WIDTH;
     let height = EPD_HEIGHT;
@@ -159,7 +167,12 @@ pub fn render_frame(
     } else {
         &status.current_action
     };
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attack", s(3, sx), s(60, sy), font, scale_9, ">");
+    // Use per-action status icon if available, otherwise fall back to static "attack" icon
+    if let Some(si) = status_icon {
+        paste_icon(&mut icon_layer, si, s(3, sx), s(60, sy));
+    } else {
+        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attack", s(3, sx), s(60, sy), font, scale_9, ">");
+    }
     draw_text_mut(&mut text_layer, BLACK, s(35, sx) as i32, s(65, sy) as i32, scale_9, font, action_text);
     if !status.detail.is_empty() {
         draw_text_mut(&mut text_layer, BLACK, s(35, sx) as i32, s(75, sy) as i32, scale_9, font, &status.detail);
@@ -189,10 +202,12 @@ pub fn render_frame(
     }
 
     // -- Bjorn character image (bottom, centered) → icon layer --
-    if let Some(bjorn) = icons.get("bjorn1") {
-        let x_center = (width - bjorn.width()) / 2;
-        let y_bottom = height - bjorn.height();
-        paste_icon(&mut icon_layer, bjorn, x_center, y_bottom);
+    // Use animated character image if available, otherwise fall back to static bjorn1.bmp
+    let char_img = character_img.or_else(|| icons.get("bjorn1"));
+    if let Some(img) = char_img {
+        let x_center = (width - img.width()) / 2;
+        let y_bottom = height - img.height();
+        paste_icon(&mut icon_layer, img, x_center, y_bottom);
     }
 
     RenderedFrame {
@@ -287,7 +302,7 @@ mod tests {
         let status = OrchestratorStatus::default();
         let config = BjornConfig::default();
         let tmp = std::path::PathBuf::from("/tmp/nonexistent");
-        let frame = render_frame(&display, &status, &config, &tmp);
+        let frame = render_frame(&display, &status, &config, &tmp, None, None);
         assert_eq!(frame.icons.width(), EPD_WIDTH);
         assert_eq!(frame.icons.height(), EPD_HEIGHT);
         assert_eq!(frame.text_mask.width(), EPD_WIDTH);
