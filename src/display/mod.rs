@@ -4,6 +4,7 @@ pub mod renderer;
 use std::sync::Arc;
 use std::time::Duration;
 
+use image::Luma;
 use tokio::time::sleep;
 
 use crate::state::AppState;
@@ -18,7 +19,6 @@ use crate::state::AppState;
 /// the tokio runtime.
 pub async fn run(state: Arc<AppState>) {
     let config = state.config();
-    let screen_reversed = true; // V4 needs 180° rotation
 
     let web_dir = state.paths.web_dir.clone();
     let png_path = web_dir.join("screen.png");
@@ -45,11 +45,12 @@ pub async fn run(state: Arc<AppState>) {
         let display_data = state.display.read().await.clone();
         let orch_status = state.status.read().await.clone();
 
-        // Render frame
+        // Render two-layer frame
         let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
 
-        // Save PNG for web UI (always, regardless of hardware)
-        if let Err(e) = frame.save(&png_path) {
+        // Flatten to single image for PNG (web UI)
+        let png_img = renderer::flatten_for_png(&frame);
+        if let Err(e) = png_img.save(&png_path) {
             tracing::error!(%e, "failed to save screen.png");
         }
 
@@ -100,18 +101,12 @@ fn run_epd_thread(state: Arc<AppState>) {
         let display_data = state.display.blocking_read().clone();
         let orch_status = state.status.blocking_read().clone();
 
-        // Render frame
+        // Render two-layer frame
         let frame = renderer::render_frame(&display_data, &orch_status, &config, &state.paths.static_images_dir);
 
-        // Apply rotation for V4
-        let frame = if screen_reversed {
-            image::imageops::rotate180(&frame)
-        } else {
-            frame
-        };
+        // Composite: dither icon layer, then stamp crisp text on top
+        let buf = composite_to_epd_buffer(&frame, screen_reversed);
 
-        // Send to e-Paper (blocking SPI)
-        let buf = image_to_epd_buffer(&frame);
         if frame_count == 0 {
             // First frame: write base image to both RAM banks (required for partial updates)
             tracing::info!("sending base image to EPD (full update)");
@@ -137,8 +132,74 @@ fn run_epd_thread(state: Arc<AppState>) {
     tracing::info!("EPD thread stopped");
 }
 
-/// Convert a grayscale image to the EPD buffer format (1 bit per pixel, packed).
-fn image_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
+/// Composite two-layer frame into EPD buffer:
+/// 1. Dither the icon layer (grayscale → 1-bit with gradients)
+/// 2. Overlay crisp text mask (no dithering, hard threshold)
+/// 3. Pack into 1-bit EPD buffer
+fn composite_to_epd_buffer(frame: &renderer::RenderedFrame, rotate: bool) -> Vec<u8> {
+    let dithered_icons = floyd_steinberg_dither(&frame.icons);
+
+    let width = dithered_icons.width();
+    let height = dithered_icons.height();
+
+    // Merge: text mask wins (crisp black), otherwise use dithered icon
+    let mut merged = dithered_icons;
+    for y in 0..height {
+        for x in 0..width {
+            let text_px = frame.text_mask.get_pixel(x, y).0[0];
+            if text_px < 128 {
+                merged.put_pixel(x, y, Luma([0u8]));
+            }
+        }
+    }
+
+    // Apply rotation for V4
+    let final_img = if rotate {
+        image::imageops::rotate180(&merged)
+    } else {
+        merged
+    };
+
+    gray_to_epd_buffer(&final_img)
+}
+
+/// Apply Floyd-Steinberg dithering to a grayscale image, converting it to 1-bit
+/// with simulated gradients — matches Python PIL `convert('1')` behavior.
+fn floyd_steinberg_dither(img: &image::GrayImage) -> image::GrayImage {
+    let width = img.width() as usize;
+    let height = img.height() as usize;
+
+    let mut pixels: Vec<i16> = img.pixels().map(|p| p.0[0] as i16).collect();
+
+    for y in 0..height {
+        for x in 0..width {
+            let idx = y * width + x;
+            let old = pixels[idx];
+            let new = if old >= 128 { 255 } else { 0 };
+            let err = old - new;
+            pixels[idx] = new;
+
+            if x + 1 < width {
+                pixels[idx + 1] += err * 7 / 16;
+            }
+            if y + 1 < height {
+                if x > 0 {
+                    pixels[(y + 1) * width + x - 1] += err * 3 / 16;
+                }
+                pixels[(y + 1) * width + x] += err * 5 / 16;
+                if x + 1 < width {
+                    pixels[(y + 1) * width + x + 1] += err * 1 / 16;
+                }
+            }
+        }
+    }
+
+    let out: Vec<u8> = pixels.iter().map(|&v| v.clamp(0, 255) as u8).collect();
+    image::GrayImage::from_raw(width as u32, height as u32, out).unwrap()
+}
+
+/// Pack a 1-bit (thresholded) grayscale image into EPD buffer format.
+fn gray_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
     let width = img.width() as usize;
     let height = img.height() as usize;
     let line_width = (width + 7) / 8;
@@ -148,7 +209,6 @@ fn image_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
         for x in 0..width {
             let pixel = img.get_pixel(x as u32, y as u32).0[0];
             if pixel < 128 {
-                // Black pixel
                 let byte_idx = y * line_width + x / 8;
                 let bit_idx = 7 - (x % 8);
                 buf[byte_idx] &= !(1 << bit_idx);

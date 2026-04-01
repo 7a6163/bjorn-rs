@@ -89,6 +89,9 @@ pub struct DisplayData {
     /// Whether Bluetooth is active.
     pub bluetooth_active: bool,
 
+    /// Whether Bluetooth PAN is connected (pan0/bnep0 interface).
+    pub pan_connected: bool,
+
     /// Whether USB is active.
     pub usb_active: bool,
 
