@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::process::Command;
 
+use crate::actions::{self, ActionOutcome, Target, build_action_registry};
 use crate::config::BjornConfig;
 use crate::state::AppState;
 
@@ -256,10 +257,14 @@ pub async fn netkb_data_json(State(state): State<Arc<AppState>>) -> impl IntoRes
                 })
                 .collect();
 
+            // Return registered action names so the manual attack UI can populate the dropdown
+            let registry = build_action_registry(&state);
+            let action_names: Vec<&str> = registry.iter().map(|a| a.name()).collect();
+
             Json(serde_json::json!({
                 "ips": ips,
                 "ports": ports,
-                "actions": Vec::<String>::new()
+                "actions": action_names
             }))
             .into_response()
         }
@@ -723,6 +728,117 @@ pub async fn start_orchestrator(State(state): State<Arc<AppState>>) -> impl Into
     status.should_exit = false;
     status.manual_mode = false;
     ok("orchestrator starting")
+}
+
+/// POST /execute_manual_attack — manually execute a specific action on a target
+#[derive(Deserialize)]
+pub struct ManualAttackParams {
+    ip: String,
+    port: u16,
+    action: String,
+}
+
+pub async fn execute_manual_attack(
+    State(state): State<Arc<AppState>>,
+    Json(params): Json<ManualAttackParams>,
+) -> impl IntoResponse {
+    // Look up host in knowledge base
+    let host = match state.kb.host_by_ip(&params.ip).await {
+        Ok(Some(h)) => h,
+        Ok(None) => {
+            return err_response(StatusCode::NOT_FOUND, format!("no host found for IP: {}", params.ip));
+        }
+        Err(e) => {
+            return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+    };
+
+    // Build action registry and find the requested action
+    let registry = build_action_registry(&state);
+    let action = match registry.iter().find(|a| a.name() == params.action) {
+        Some(a) => a,
+        None => {
+            return err_response(
+                StatusCode::BAD_REQUEST,
+                format!("action '{}' not found", params.action),
+            );
+        }
+    };
+
+    let ports: Vec<u16> = host
+        .ports
+        .split(';')
+        .filter_map(|p| p.parse().ok())
+        .collect();
+
+    let target = Target {
+        host_id: host.id,
+        ip: host.ip.clone(),
+        mac_address: host.mac_address.clone(),
+        hostname: host.hostname.clone(),
+        ports,
+    };
+
+    tracing::info!(
+        action = params.action,
+        ip = %params.ip,
+        port = params.port,
+        "executing manual attack from web UI"
+    );
+
+    let outcome = action.execute(&target, &state).await;
+    let status_str = match &outcome {
+        ActionOutcome::Success => "success",
+        ActionOutcome::Failed(_) => "failed",
+    };
+
+    let _ = state.kb.record_action(host.id, action.name(), status_str).await;
+
+    match outcome {
+        ActionOutcome::Success => ok(format!("{} executed successfully on {}:{}", params.action, params.ip, params.port)),
+        ActionOutcome::Failed(msg) => err_response(
+            StatusCode::OK,
+            format!("{} failed on {}:{}: {}", params.action, params.ip, params.port, msg),
+        ),
+    }
+}
+
+/// POST /restore — upload and extract a backup zip file
+pub async fn restore_backup(
+    State(state): State<Arc<AppState>>,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    if body.is_empty() {
+        return err_response(StatusCode::BAD_REQUEST, "no file uploaded");
+    }
+
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let upload_path = state.paths.uploads_dir.join(format!("restore_{timestamp}.zip"));
+
+    // Save uploaded file
+    if let Err(e) = fs::write(&upload_path, &body).await {
+        return err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to save upload: {e}"));
+    }
+
+    // Extract zip to BJORN_ROOT
+    let root = &state.paths.root;
+    let result = Command::new("unzip")
+        .args(["-o", upload_path.to_str().unwrap_or_default(), "-d", root.to_str().unwrap_or_default()])
+        .output()
+        .await;
+
+    match result {
+        Ok(output) if output.status.success() => {
+            // Reload config after restore
+            state.reload_config();
+            ok("restore completed successfully")
+        }
+        Ok(output) => err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("unzip failed: {}", String::from_utf8_lossy(&output.stderr)),
+        ),
+        Err(e) => err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to run unzip: {e}")),
+    }
 }
 
 // -- LLM API handlers --

@@ -199,6 +199,15 @@ impl KnowledgeBase {
         Ok(hosts)
     }
 
+    /// Get a host by IP address.
+    pub async fn host_by_ip(&self, ip: &str) -> Result<Option<Host>> {
+        let host = sqlx::query_as::<_, Host>("SELECT * FROM hosts WHERE ip = ?1")
+            .bind(ip)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(host)
+    }
+
     /// Get all known hosts.
     pub async fn all_hosts(&self) -> Result<Vec<Host>> {
         let hosts = sqlx::query_as::<_, Host>("SELECT * FROM hosts ORDER BY last_seen DESC")

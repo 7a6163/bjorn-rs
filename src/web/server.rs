@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
+use axum::response::Redirect;
 use axum::routing::{get, post};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
@@ -11,10 +12,14 @@ use super::handlers;
 
 /// Build the Axum router with all routes.
 fn build_router(state: Arc<AppState>) -> Router {
-    // Static file fallback: serves everything in web/ (html, css, js, images)
-    let static_files = ServeDir::new(&state.paths.web_dir);
+    // Static file fallback: serves $BJORN_ROOT so that /web/images/... resolves
+    // to $BJORN_ROOT/web/images/... (matches Python's SimpleHTTPRequestHandler
+    // which serves from the Bjorn root directory).
+    let static_files = ServeDir::new(&state.paths.root);
 
     Router::new()
+        // -- Root redirect to index.html (matches Python's GET /) --
+        .route("/", get(|| async { Redirect::temporary("/web/index.html") }))
         // -- GET API routes --
         .route("/load_config", get(handlers::load_config))
         .route(
@@ -45,6 +50,8 @@ fn build_router(state: Arc<AppState>) -> Router {
             post(handlers::restart_bjorn_service),
         )
         .route("/backup", post(handlers::create_backup))
+        .route("/restore", post(handlers::restore_backup))
+        .route("/execute_manual_attack", post(handlers::execute_manual_attack))
         .route("/stop_orchestrator", post(handlers::stop_orchestrator))
         .route("/start_orchestrator", post(handlers::start_orchestrator))
         // -- LLM API routes --
