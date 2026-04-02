@@ -746,7 +746,10 @@ pub async fn execute_manual_attack(
     let host = match state.kb.host_by_ip(&params.ip).await {
         Ok(Some(h)) => h,
         Ok(None) => {
-            return err_response(StatusCode::NOT_FOUND, format!("no host found for IP: {}", params.ip));
+            return err_response(
+                StatusCode::NOT_FOUND,
+                format!("no host found for IP: {}", params.ip),
+            );
         }
         Err(e) => {
             return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
@@ -792,13 +795,22 @@ pub async fn execute_manual_attack(
         ActionOutcome::Failed(_) => "failed",
     };
 
-    let _ = state.kb.record_action(host.id, action.name(), status_str).await;
+    let _ = state
+        .kb
+        .record_action(host.id, action.name(), status_str)
+        .await;
 
     match outcome {
-        ActionOutcome::Success => ok(format!("{} executed successfully on {}:{}", params.action, params.ip, params.port)),
+        ActionOutcome::Success => ok(format!(
+            "{} executed successfully on {}:{}",
+            params.action, params.ip, params.port
+        )),
         ActionOutcome::Failed(msg) => err_response(
             StatusCode::OK,
-            format!("{} failed on {}:{}: {}", params.action, params.ip, params.port, msg),
+            format!(
+                "{} failed on {}:{}: {}",
+                params.action, params.ip, params.port, msg
+            ),
         ),
     }
 }
@@ -813,17 +825,28 @@ pub async fn restore_backup(
     }
 
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let upload_path = state.paths.uploads_dir.join(format!("restore_{timestamp}.zip"));
+    let upload_path = state
+        .paths
+        .uploads_dir
+        .join(format!("restore_{timestamp}.zip"));
 
     // Save uploaded file
     if let Err(e) = fs::write(&upload_path, &body).await {
-        return err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to save upload: {e}"));
+        return err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to save upload: {e}"),
+        );
     }
 
     // Extract zip to BJORN_ROOT
     let root = &state.paths.root;
     let result = Command::new("unzip")
-        .args(["-o", upload_path.to_str().unwrap_or_default(), "-d", root.to_str().unwrap_or_default()])
+        .args([
+            "-o",
+            upload_path.to_str().unwrap_or_default(),
+            "-d",
+            root.to_str().unwrap_or_default(),
+        ])
         .output()
         .await;
 
@@ -837,7 +860,10 @@ pub async fn restore_backup(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("unzip failed: {}", String::from_utf8_lossy(&output.stderr)),
         ),
-        Err(e) => err_response(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to run unzip: {e}")),
+        Err(e) => err_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to run unzip: {e}"),
+        ),
     }
 }
 

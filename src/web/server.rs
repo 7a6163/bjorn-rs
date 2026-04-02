@@ -19,7 +19,10 @@ fn build_router(state: Arc<AppState>) -> Router {
 
     Router::new()
         // -- Root redirect to index.html (matches Python's GET /) --
-        .route("/", get(|| async { Redirect::temporary("/web/index.html") }))
+        .route(
+            "/",
+            get(|| async { Redirect::temporary("/web/index.html") }),
+        )
         // -- GET API routes --
         .route("/load_config", get(handlers::load_config))
         .route(
@@ -51,7 +54,10 @@ fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/backup", post(handlers::create_backup))
         .route("/restore", post(handlers::restore_backup))
-        .route("/execute_manual_attack", post(handlers::execute_manual_attack))
+        .route(
+            "/execute_manual_attack",
+            post(handlers::execute_manual_attack),
+        )
         .route("/stop_orchestrator", post(handlers::stop_orchestrator))
         .route("/start_orchestrator", post(handlers::start_orchestrator))
         // -- LLM API routes --
