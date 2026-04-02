@@ -229,26 +229,7 @@ sudo apt-get install -y nmap smbclient sshpass wget zip \
 
 ## Changelog
 
-### v1.0.0-alpha.5
-
-- **Web UI**: manual attack execution (`POST /execute_manual_attack`), backup restore (`POST /restore`), fix static file serving, HTML page redirects
-- **Display**: two-layer rendering (dithered icons + crisp 1-bit text), Floyd-Steinberg dithering, comment engine with themed random quotes, animated status character images, multi-EPD support
-- **CLI**: `bjorn --version` flag, versioned release artifacts
-- **CI**: upgrade GitHub Actions (checkout v6, upload-artifact v7, download-artifact v8)
-- **DB**: `host_by_ip()` query, PAN connected display state
-
-### v1.0.0-alpha.4
-
-- Multi-EPD display support (V2, V3, V4)
-- CI/CD pipeline with cross-compilation
-- Display rendering optimizations
-
-### v1.0.0-alpha.3
-
-- SNMP, VNC, MQTT, HTTP Basic Auth attack modules
-- LLM integration (Ollama/Anthropic/OpenAI cascade)
-- Sentinel network watchdog
-- Web UI with 30+ API endpoints
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 ## Disclaimer
 
