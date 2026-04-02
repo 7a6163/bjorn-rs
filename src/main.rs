@@ -119,6 +119,14 @@ async fn sentinel_task(state: Arc<AppState>) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Handle --version / -V flag
+    if let Some(arg) = std::env::args().nth(1) {
+        if arg == "--version" || arg == "-V" {
+            println!("bjorn {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+    }
+
     // Determine root directory: BJORN_ROOT env var or default
     let root = std::env::var("BJORN_ROOT")
         .map(PathBuf::from)

@@ -19,9 +19,9 @@ jobs:
       matrix:
         include:
           - target: aarch64-unknown-linux-gnu
-            artifact: bjorn-aarch64
+            arch: aarch64
           - target: arm-unknown-linux-gnueabihf
-            artifact: bjorn-armv6
+            arch: armv6
     steps:
       - uses: actions/checkout@v6
 
@@ -35,14 +35,16 @@ jobs:
       - name: Build
         run: cross build --release --target ${{ matrix.target }}
 
-      - name: Rename binary
-        run: cp target/${{ matrix.target }}/release/bjorn ${{ matrix.artifact }}
+      - name: Rename binary with version
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          cp target/${{ matrix.target }}/release/bjorn bjorn-${{ matrix.arch }}-${VERSION}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: bjorn-${{ matrix.arch }}
+          path: bjorn-${{ matrix.arch }}-*
 
   release:
     name: Create Release
@@ -82,8 +84,9 @@ jobs:
       - name: Get binary sizes
         id: sizes
         run: |
-          AARCH64_SIZE=$(du -h bjorn-aarch64/bjorn-aarch64 | cut -f1)
-          ARMV6_SIZE=$(du -h bjorn-armv6/bjorn-armv6 | cut -f1)
+          VERSION=${GITHUB_REF_NAME}
+          AARCH64_SIZE=$(du -h bjorn-aarch64/bjorn-aarch64-${VERSION} | cut -f1)
+          ARMV6_SIZE=$(du -h bjorn-armv6/bjorn-armv6-${VERSION} | cut -f1)
           echo "aarch64=${AARCH64_SIZE}" >> "$GITHUB_OUTPUT"
           echo "armv6=${ARMV6_SIZE}" >> "$GITHUB_OUTPUT"
 
@@ -98,6 +101,17 @@ jobs:
             |--------|------|
             | AArch64 (Pi Zero W2 / Pi 3/4/5) | ${{ steps.sizes.outputs.aarch64 }} |
             | ARMv6 (Pi Zero W) | ${{ steps.sizes.outputs.armv6 }} |
+
+            ## Install
+            ```bash
+            # Pi Zero W2 / Pi 3/4/5
+            wget <release-url>/bjorn-aarch64-${{ github.ref_name }}
+            chmod +x bjorn-aarch64-${{ github.ref_name }}
+
+            # Pi Zero W
+            wget <release-url>/bjorn-armv6-${{ github.ref_name }}
+            chmod +x bjorn-armv6-${{ github.ref_name }}
+            ```
           files: |
-            bjorn-aarch64/bjorn-aarch64
-            bjorn-armv6/bjorn-armv6
+            bjorn-aarch64/bjorn-aarch64-*
+            bjorn-armv6/bjorn-armv6-*
