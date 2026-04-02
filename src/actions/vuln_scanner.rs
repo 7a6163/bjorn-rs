@@ -129,7 +129,9 @@ fn parse_vulnerabilities(output: &str) -> Vec<ParsedVuln> {
         }
 
         // Capture lines with vulnerability indicators
-        if trimmed.contains("CVE-") || trimmed.contains("VULNERABLE") || trimmed.contains("*EXPLOIT*")
+        if trimmed.contains("CVE-")
+            || trimmed.contains("VULNERABLE")
+            || trimmed.contains("*EXPLOIT*")
         {
             let severity = if trimmed.contains("*EXPLOIT*") {
                 Some("CRITICAL".to_string())

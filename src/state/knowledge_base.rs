@@ -209,22 +209,19 @@ impl KnowledgeBase {
 
     /// Mark a host as dead.
     pub async fn mark_host_dead(&self, mac_address: &str) -> Result<()> {
-        sqlx::query("UPDATE hosts SET alive = 0, last_seen = datetime('now') WHERE mac_address = ?1")
-            .bind(mac_address)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "UPDATE hosts SET alive = 0, last_seen = datetime('now') WHERE mac_address = ?1",
+        )
+        .bind(mac_address)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
     // -- Action result operations --
 
     /// Record the result of an action execution.
-    pub async fn record_action(
-        &self,
-        host_id: i64,
-        action_name: &str,
-        status: &str,
-    ) -> Result<()> {
+    pub async fn record_action(&self, host_id: i64, action_name: &str, status: &str) -> Result<()> {
         sqlx::query(
             r#"
             INSERT INTO action_results (host_id, action_name, status)
@@ -297,11 +294,9 @@ impl KnowledgeBase {
             .fetch_all(&self.pool)
             .await?
         } else {
-            sqlx::query_as::<_, Credential>(
-                "SELECT * FROM credentials ORDER BY discovered_at DESC",
-            )
-            .fetch_all(&self.pool)
-            .await?
+            sqlx::query_as::<_, Credential>("SELECT * FROM credentials ORDER BY discovered_at DESC")
+                .fetch_all(&self.pool)
+                .await?
         };
         Ok(creds)
     }
@@ -344,26 +339,20 @@ impl KnowledgeBase {
     // -- Stats --
 
     /// Get summary counts for display.
-    pub async fn stats(
-        &self,
-    ) -> Result<(u32, u32, u32, u32, u32)> {
+    pub async fn stats(&self) -> Result<(u32, u32, u32, u32, u32)> {
         // (alive_hosts, total_hosts, total_creds, total_vulns, total_actions)
-        let alive: (i32,) =
-            sqlx::query_as("SELECT COUNT(*) FROM hosts WHERE alive = 1")
-                .fetch_one(&self.pool)
-                .await?;
-        let total: (i32,) =
-            sqlx::query_as("SELECT COUNT(*) FROM hosts")
-                .fetch_one(&self.pool)
-                .await?;
-        let creds: (i32,) =
-            sqlx::query_as("SELECT COUNT(*) FROM credentials")
-                .fetch_one(&self.pool)
-                .await?;
-        let vulns: (i32,) =
-            sqlx::query_as("SELECT COUNT(*) FROM vulnerabilities")
-                .fetch_one(&self.pool)
-                .await?;
+        let alive: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM hosts WHERE alive = 1")
+            .fetch_one(&self.pool)
+            .await?;
+        let total: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM hosts")
+            .fetch_one(&self.pool)
+            .await?;
+        let creds: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM credentials")
+            .fetch_one(&self.pool)
+            .await?;
+        let vulns: (i32,) = sqlx::query_as("SELECT COUNT(*) FROM vulnerabilities")
+            .fetch_one(&self.pool)
+            .await?;
         let actions: (i32,) =
             sqlx::query_as("SELECT COUNT(*) FROM action_results WHERE status = 'success'")
                 .fetch_one(&self.pool)
@@ -397,7 +386,13 @@ mod tests {
         let (kb, _dir) = test_kb().await;
 
         let id = kb
-            .upsert_host("aa:bb:cc:dd:ee:ff", "192.168.1.10", Some("victim"), true, "22;80")
+            .upsert_host(
+                "aa:bb:cc:dd:ee:ff",
+                "192.168.1.10",
+                Some("victim"),
+                true,
+                "22;80",
+            )
             .await
             .unwrap();
         assert!(id > 0);

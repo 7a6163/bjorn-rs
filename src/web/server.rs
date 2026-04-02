@@ -17,7 +17,10 @@ fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         // -- GET API routes --
         .route("/load_config", get(handlers::load_config))
-        .route("/restore_default_config", get(handlers::restore_default_config))
+        .route(
+            "/restore_default_config",
+            get(handlers::restore_default_config),
+        )
         .route("/get_web_delay", get(handlers::get_web_delay))
         .route("/scan_wifi", get(handlers::scan_wifi))
         .route("/network_data", get(handlers::network_data))
@@ -37,7 +40,10 @@ fn build_router(state: Arc<AppState>) -> Router {
         .route("/clear_files_light", post(handlers::clear_files_light))
         .route("/reboot", post(handlers::reboot_system))
         .route("/shutdown", post(handlers::shutdown_system))
-        .route("/restart_bjorn_service", post(handlers::restart_bjorn_service))
+        .route(
+            "/restart_bjorn_service",
+            post(handlers::restart_bjorn_service),
+        )
         .route("/backup", post(handlers::create_backup))
         .route("/stop_orchestrator", post(handlers::stop_orchestrator))
         .route("/start_orchestrator", post(handlers::start_orchestrator))
@@ -46,7 +52,10 @@ fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/llm/status", get(handlers::llm_status))
         // -- Tool/MCP-compatible routes --
         .route("/api/tools/hosts", get(handlers::api_get_hosts))
-        .route("/api/tools/vulnerabilities", get(handlers::api_get_vulnerabilities))
+        .route(
+            "/api/tools/vulnerabilities",
+            get(handlers::api_get_vulnerabilities),
+        )
         .route("/api/tools/credentials", get(handlers::api_get_credentials))
         .route("/api/tools/status", get(handlers::api_get_status))
         // -- Sentinel routes --

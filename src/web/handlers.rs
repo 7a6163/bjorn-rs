@@ -55,9 +55,7 @@ pub async fn restore_default_config(State(state): State<Arc<AppState>>) -> impl 
     if let Err(e) = default.save(&state.paths.shared_config_json) {
         return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
-    state
-        .config
-        .store(Arc::new(default.clone()));
+    state.config.store(Arc::new(default.clone()));
     Json(default).into_response()
 }
 
@@ -85,7 +83,7 @@ pub async fn scan_wifi() -> impl IntoResponse {
                 .into_response();
         }
         Err(e) => {
-            return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+            return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
         }
     };
 
@@ -129,7 +127,7 @@ pub async fn network_data(State(state): State<Arc<AppState>>) -> impl IntoRespon
     let latest = match find_latest_result_file(scan_dir).await {
         Some(path) => path,
         None => {
-            return err_response(StatusCode::NOT_FOUND, "no scan results found").into_response()
+            return err_response(StatusCode::NOT_FOUND, "no scan results found").into_response();
         }
     };
 
@@ -192,8 +190,15 @@ fn csv_to_html_table(csv_content: &str) -> String {
     for line in lines {
         html.push_str("<tr>");
         for cell in line.split(',') {
-            let class = if cell.trim().is_empty() { "red" } else { "green" };
-            html.push_str(&format!(r#"<td class="{class}">{}</td>"#, html_escape(cell)));
+            let class = if cell.trim().is_empty() {
+                "red"
+            } else {
+                "green"
+            };
+            html.push_str(&format!(
+                r#"<td class="{class}">{}</td>"#,
+                html_escape(cell)
+            ));
         }
         html.push_str("</tr>");
     }
@@ -211,7 +216,11 @@ pub async fn netkb_data(State(state): State<Arc<AppState>>) -> impl IntoResponse
                 </tr></thead><tbody>"#,
             );
             for host in &hosts {
-                let row_class = if !host.alive { r#" class="blue-row""# } else { "" };
+                let row_class = if !host.alive {
+                    r#" class="blue-row""#
+                } else {
+                    ""
+                };
                 let alive_str = if host.alive { "1" } else { "0" };
                 html.push_str(&format!(
                     r#"<tr{row_class}><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
@@ -241,11 +250,9 @@ pub async fn netkb_data_json(State(state): State<Arc<AppState>>) -> impl IntoRes
             let ports: serde_json::Map<String, serde_json::Value> = hosts
                 .iter()
                 .map(|h| {
-                    let port_list: Vec<&str> = h.ports.split(';').filter(|p| !p.is_empty()).collect();
-                    (
-                        h.ip.clone(),
-                        serde_json::json!(port_list),
-                    )
+                    let port_list: Vec<&str> =
+                        h.ports.split(';').filter(|p| !p.is_empty()).collect();
+                    (h.ip.clone(), serde_json::json!(port_list))
                 })
                 .collect();
 
@@ -579,9 +586,7 @@ method=auto
         .output()
         .await
     {
-        Ok(output) if output.status.success() => {
-            ok(format!("connected to {}", params.ssid))
-        }
+        Ok(output) if output.status.success() => ok(format!("connected to {}", params.ssid)),
         Ok(output) => err_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             String::from_utf8_lossy(&output.stderr).to_string(),
@@ -659,9 +664,7 @@ pub async fn reboot_system() -> impl IntoResponse {
 
 /// POST /shutdown
 pub async fn shutdown_system() -> impl IntoResponse {
-    let _ = Command::new("sudo")
-        .args(["shutdown", "now"])
-        .spawn();
+    let _ = Command::new("sudo").args(["shutdown", "now"]).spawn();
     ok("system is shutting down")
 }
 
@@ -702,9 +705,7 @@ pub async fn create_backup(State(state): State<Arc<AppState>>) -> impl IntoRespo
             String::from_utf8_lossy(&output.stderr).to_string(),
         )
         .into_response(),
-        Err(e) => {
-            err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-        }
+        Err(e) => err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 

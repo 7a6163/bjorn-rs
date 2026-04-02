@@ -18,9 +18,7 @@ impl Connector for HttpBasicConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            http_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { http_try_connect(&ip, port, &user, &password).await })
     }
 }
 
@@ -87,7 +85,14 @@ pub fn create_action() -> BruteForceAction<HttpBasicConnector> {
 
 /// Create a second action instance for port 8080.
 pub fn create_action_8080() -> BruteForceAction<HttpBasicConnector> {
-    BruteForceAction::new(HttpBasicConnector, "HTTPBruteforce8080", "http", 8080, None, 20)
+    BruteForceAction::new(
+        HttpBasicConnector,
+        "HTTPBruteforce8080",
+        "http",
+        8080,
+        None,
+        20,
+    )
 }
 
 fn base64_encode(input: &str) -> String {
@@ -101,8 +106,16 @@ fn base64_encode(input: &str) -> String {
         let triple = (b0 << 16) | (b1 << 8) | b2;
         result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
         result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
-        result.push(if chunk.len() > 1 { CHARS[((triple >> 6) & 0x3F) as usize] as char } else { '=' });
-        result.push(if chunk.len() > 2 { CHARS[(triple & 0x3F) as usize] as char } else { '=' });
+        result.push(if chunk.len() > 1 {
+            CHARS[((triple >> 6) & 0x3F) as usize] as char
+        } else {
+            '='
+        });
+        result.push(if chunk.len() > 2 {
+            CHARS[(triple & 0x3F) as usize] as char
+        } else {
+            '='
+        });
     }
     result
 }

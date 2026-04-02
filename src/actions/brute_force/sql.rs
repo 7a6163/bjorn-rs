@@ -19,9 +19,7 @@ impl Connector for SqlConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            sql_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { sql_try_connect(&ip, port, &user, &password).await })
     }
 }
 
@@ -31,11 +29,15 @@ async fn sql_try_connect(ip: &str, port: u16, user: &str, password: &str) -> boo
         Duration::from_secs(10),
         Command::new("mysql")
             .args([
-                "-h", ip,
-                "-P", &port.to_string(),
-                "-u", user,
+                "-h",
+                ip,
+                "-P",
+                &port.to_string(),
+                "-u",
+                user,
                 &format!("-p{password}"),
-                "-e", "SELECT 1",
+                "-e",
+                "SELECT 1",
                 "--connect-timeout=5",
             ])
             .output(),

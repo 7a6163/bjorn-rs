@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::config::BjornConfig;
 use crate::state::AppState;
@@ -144,7 +144,10 @@ impl LlmBridge {
             .ok()?;
 
         let body: Value = response.json().await.ok()?;
-        body.get("message")?.get("content")?.as_str().map(String::from)
+        body.get("message")?
+            .get("content")?
+            .as_str()
+            .map(String::from)
     }
 
     /// Call Anthropic Messages API with agentic tool-calling loop (max 6 rounds).

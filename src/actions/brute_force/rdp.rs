@@ -19,9 +19,7 @@ impl Connector for RdpConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            rdp_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { rdp_try_connect(&ip, port, &user, &password).await })
     }
 }
 

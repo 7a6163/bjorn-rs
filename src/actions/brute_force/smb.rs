@@ -19,9 +19,7 @@ impl Connector for SmbConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            smb_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { smb_try_connect(&ip, port, &user, &password).await })
     }
 }
 
@@ -30,13 +28,7 @@ async fn smb_try_connect(ip: &str, _port: u16, user: &str, password: &str) -> bo
     let result = tokio::time::timeout(
         Duration::from_secs(15),
         Command::new("smbclient")
-            .args([
-                "-L",
-                ip,
-                "-U",
-                &format!("{user}%{password}"),
-                "--timeout=5",
-            ])
+            .args(["-L", ip, "-U", &format!("{user}%{password}"), "--timeout=5"])
             .output(),
     )
     .await;

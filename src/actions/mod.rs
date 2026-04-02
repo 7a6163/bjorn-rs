@@ -1,7 +1,7 @@
-pub mod scanning;
-pub mod vuln_scanner;
 pub mod brute_force;
 pub mod exfiltrate;
+pub mod scanning;
+pub mod vuln_scanner;
 
 use std::sync::Arc;
 

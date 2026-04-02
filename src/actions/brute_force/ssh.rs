@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use russh::client;
 use super::{BruteForceAction, Connector};
+use russh::client;
 
 /// SSH connector using russh.
 pub struct SshConnector;
@@ -18,9 +18,7 @@ impl Connector for SshConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            ssh_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { ssh_try_connect(&ip, port, &user, &password).await })
     }
 }
 

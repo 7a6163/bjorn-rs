@@ -19,9 +19,7 @@ impl Connector for VncConnector {
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
         let ip = ip.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            vnc_try_connect(&ip, port, &password).await
-        })
+        Box::pin(async move { vnc_try_connect(&ip, port, &password).await })
     }
 }
 

@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::EnvFilter;
 
 /// Initialize the tracing/logging system.
 ///

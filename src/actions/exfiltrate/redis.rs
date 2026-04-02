@@ -15,9 +15,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataRedis;
 
 impl Action for StealDataRedis {
-    fn name(&self) -> &'static str { "StealDataRedis" }
-    fn port(&self) -> Option<u16> { Some(6379) }
-    fn parent(&self) -> Option<&'static str> { Some("RedisBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataRedis"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(6379)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("RedisBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::state::AppState;
 
@@ -113,14 +113,13 @@ pub fn tool_definitions() -> Vec<Value> {
 }
 
 /// Execute a tool call and return the result as a JSON string.
-pub async fn execute_tool(
-    name: &str,
-    inputs: &Value,
-    state: &Arc<AppState>,
-) -> String {
+pub async fn execute_tool(name: &str, inputs: &Value, state: &Arc<AppState>) -> String {
     match name {
         "get_hosts" => {
-            let alive_only = inputs.get("alive_only").and_then(|v| v.as_bool()).unwrap_or(true);
+            let alive_only = inputs
+                .get("alive_only")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
             let hosts = if alive_only {
                 state.kb.alive_hosts().await
             } else {
@@ -142,37 +141,36 @@ pub async fn execute_tool(
                         .collect();
                     serde_json::to_string(&result).unwrap_or_default()
                 }
-                Err(e) => format!("{{\"error\": \"{e}\"}}")
+                Err(e) => format!("{{\"error\": \"{e}\"}}"),
             }
         }
 
-        "get_vulnerabilities" => {
-            match state.kb.vulnerabilities().await {
-                Ok(vulns) => {
-                    let limit = inputs.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
-                    let result: Vec<Value> = vulns
-                        .iter()
-                        .take(limit)
-                        .map(|v| {
-                            json!({
-                                "host_id": v.host_id,
-                                "port": v.port,
-                                "description": v.description,
-                                "severity": v.severity,
-                            })
+        "get_vulnerabilities" => match state.kb.vulnerabilities().await {
+            Ok(vulns) => {
+                let limit = inputs.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+                let result: Vec<Value> = vulns
+                    .iter()
+                    .take(limit)
+                    .map(|v| {
+                        json!({
+                            "host_id": v.host_id,
+                            "port": v.port,
+                            "description": v.description,
+                            "severity": v.severity,
                         })
-                        .collect();
-                    serde_json::to_string(&result).unwrap_or_default()
-                }
-                Err(e) => format!("{{\"error\": \"{e}\"}}")
+                    })
+                    .collect();
+                serde_json::to_string(&result).unwrap_or_default()
             }
-        }
+            Err(e) => format!("{{\"error\": \"{e}\"}}"),
+        },
 
         "get_credentials" => {
             let service = inputs.get("service").and_then(|v| v.as_str());
             match state.kb.credentials(service).await {
                 Ok(creds) => {
-                    let limit = inputs.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+                    let limit =
+                        inputs.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
                     let result: Vec<Value> = creds
                         .iter()
                         .take(limit)
@@ -188,24 +186,22 @@ pub async fn execute_tool(
                         .collect();
                     serde_json::to_string(&result).unwrap_or_default()
                 }
-                Err(e) => format!("{{\"error\": \"{e}\"}}")
+                Err(e) => format!("{{\"error\": \"{e}\"}}"),
             }
         }
 
         "get_action_history" => {
             // Return a summary from the stats
             match state.kb.stats().await {
-                Ok((alive, total, creds, vulns, actions)) => {
-                    json!({
-                        "alive_hosts": alive,
-                        "total_hosts": total,
-                        "total_credentials": creds,
-                        "total_vulnerabilities": vulns,
-                        "successful_actions": actions,
-                    })
-                    .to_string()
-                }
-                Err(e) => format!("{{\"error\": \"{e}\"}}")
+                Ok((alive, total, creds, vulns, actions)) => json!({
+                    "alive_hosts": alive,
+                    "total_hosts": total,
+                    "total_credentials": creds,
+                    "total_vulnerabilities": vulns,
+                    "successful_actions": actions,
+                })
+                .to_string(),
+                Err(e) => format!("{{\"error\": \"{e}\"}}"),
             }
         }
 
@@ -226,8 +222,14 @@ pub async fn execute_tool(
         }
 
         "run_action" => {
-            let action = inputs.get("action_name").and_then(|v| v.as_str()).unwrap_or("");
-            let ip = inputs.get("target_ip").and_then(|v| v.as_str()).unwrap_or("");
+            let action = inputs
+                .get("action_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let ip = inputs
+                .get("target_ip")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             // For now, log the request — full action queue integration in Phase 2
             tracing::info!(action = %action, ip = %ip, "LLM requested action execution");
             json!({"status": "queued", "action": action, "target": ip}).to_string()

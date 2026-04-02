@@ -42,7 +42,13 @@ mod hw {
             let mut pwr = gpio.get(PWR_PIN).ok()?.into_output();
             pwr.set_high();
 
-            Some(Self { spi, rst, dc, busy, pwr })
+            Some(Self {
+                spi,
+                rst,
+                dc,
+                busy,
+                pwr,
+            })
         }
 
         fn reset(&mut self) {
@@ -127,7 +133,7 @@ mod hw {
             self.wait_busy();
 
             self.send_command(0x01); // Driver output control
-            self.send_data(0xF9);   // (height - 1) & 0xFF = 249
+            self.send_data(0xF9); // (height - 1) & 0xFF = 249
             self.send_data(0x00);
             self.send_data(0x00);
 
@@ -236,13 +242,21 @@ mod hw {
         pub fn new() -> Option<Self> {
             None
         }
-        pub fn init(&mut self) -> Result<(), String> { Ok(()) }
-        pub fn init_partial(&mut self) -> Result<(), String> { Ok(()) }
+        pub fn init(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+        pub fn init_partial(&mut self) -> Result<(), String> {
+            Ok(())
+        }
         pub fn display(&mut self, _buf: &[u8]) {}
         pub fn display_base_image(&mut self, _buf: &[u8]) {}
-        pub fn display_partial(&mut self, _buf: &[u8]) -> Result<(), String> { Ok(()) }
+        pub fn display_partial(&mut self, _buf: &[u8]) -> Result<(), String> {
+            Ok(())
+        }
         pub fn clear(&mut self) {}
-        pub fn sleep(&mut self) -> Result<(), String> { Ok(()) }
+        pub fn sleep(&mut self) -> Result<(), String> {
+            Ok(())
+        }
     }
 }
 

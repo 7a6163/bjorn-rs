@@ -1,16 +1,16 @@
-pub mod ssh;
 pub mod ftp;
-pub mod telnet;
-pub mod sql;
-pub mod smb;
-pub mod rdp;
-pub mod postgres;
-pub mod mongo;
-pub mod redis;
-pub mod snmp;
-pub mod vnc;
-pub mod mqtt;
 pub mod http_basic;
+pub mod mongo;
+pub mod mqtt;
+pub mod postgres;
+pub mod rdp;
+pub mod redis;
+pub mod smb;
+pub mod snmp;
+pub mod sql;
+pub mod ssh;
+pub mod telnet;
+pub mod vnc;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -66,11 +66,7 @@ impl<C: Connector> BruteForceAction<C> {
     }
 
     /// Run brute-force against a target, storing credentials on success.
-    async fn run_bruteforce(
-        &self,
-        target: &Target,
-        state: &Arc<AppState>,
-    ) -> ActionOutcome {
+    async fn run_bruteforce(&self, target: &Target, state: &Arc<AppState>) -> ActionOutcome {
         let users = match load_wordlist(&state.paths.users_file).await {
             Ok(u) => u,
             Err(e) => {
@@ -175,5 +171,9 @@ impl<C: Connector + 'static> Action for BruteForceAction<C> {
 /// Load a wordlist file (one entry per line).
 async fn load_wordlist(path: &std::path::Path) -> std::io::Result<Vec<String>> {
     let content = tokio::fs::read_to_string(path).await?;
-    Ok(content.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+    Ok(content
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect())
 }

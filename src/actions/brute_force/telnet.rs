@@ -20,9 +20,7 @@ impl Connector for TelnetConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            telnet_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { telnet_try_connect(&ip, port, &user, &password).await })
     }
 }
 

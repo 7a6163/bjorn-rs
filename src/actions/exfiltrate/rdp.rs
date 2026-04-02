@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealFilesRdp;
 
 impl Action for StealFilesRdp {
-    fn name(&self) -> &'static str { "StealFilesRDP" }
-    fn port(&self) -> Option<u16> { Some(3389) }
-    fn parent(&self) -> Option<&'static str> { Some("RDPBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealFilesRDP"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(3389)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("RDPBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,

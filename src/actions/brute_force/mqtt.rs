@@ -21,9 +21,7 @@ impl Connector for MqttConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            mqtt_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { mqtt_try_connect(&ip, port, &user, &password).await })
     }
 }
 

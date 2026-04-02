@@ -15,9 +15,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataHttp;
 
 impl Action for StealDataHttp {
-    fn name(&self) -> &'static str { "StealDataHTTP" }
-    fn port(&self) -> Option<u16> { Some(80) }
-    fn parent(&self) -> Option<&'static str> { Some("HTTPBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataHTTP"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(80)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("HTTPBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -32,9 +38,15 @@ impl Action for StealDataHttp {
 pub struct StealDataHttp8080;
 
 impl Action for StealDataHttp8080 {
-    fn name(&self) -> &'static str { "StealDataHTTP8080" }
-    fn port(&self) -> Option<u16> { Some(8080) }
-    fn parent(&self) -> Option<&'static str> { Some("HTTPBruteforce8080") }
+    fn name(&self) -> &'static str {
+        "StealDataHTTP8080"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(8080)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("HTTPBruteforce8080")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -63,7 +75,12 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
         return ActionOutcome::Failed("no credentials".to_string());
     }
 
-    let port = target.ports.iter().find(|&&p| p == 80 || p == 8080).copied().unwrap_or(80);
+    let port = target
+        .ports
+        .iter()
+        .find(|&&p| p == 80 || p == 8080)
+        .copied()
+        .unwrap_or(80);
     let local_dir = build_output_dir(state, "http", &target.mac_address, &target.ip);
     let _ = tokio::fs::create_dir_all(&local_dir).await;
 

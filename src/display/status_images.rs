@@ -103,10 +103,7 @@ impl StatusImages {
     }
 
     fn randomize(&mut self, status: &str) {
-        let images = self
-            .series
-            .get(status)
-            .or_else(|| self.series.get("IDLE"));
+        let images = self.series.get(status).or_else(|| self.series.get("IDLE"));
 
         if let Some(imgs) = images {
             if !imgs.is_empty() {

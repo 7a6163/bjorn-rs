@@ -40,7 +40,11 @@ pub async fn run(state: Arc<AppState>) {
         }
 
         let orch_status = state.status.read().await.clone();
-        let action = if orch_status.current_action.is_empty() { "IDLE" } else { &orch_status.current_action };
+        let action = if orch_status.current_action.is_empty() {
+            "IDLE"
+        } else {
+            &orch_status.current_action
+        };
 
         if let Some(comment) = comments.get_comment(action) {
             state.display.write().await.bjorn_says = comment;
@@ -49,8 +53,14 @@ pub async fn run(state: Arc<AppState>) {
         let display_data = state.display.read().await.clone();
         let (epd_w, epd_h) = epd::display_dimensions(&config.epd_type);
         let frame = renderer::render_frame(
-            &display_data, &orch_status, &config,
-            &state.paths.static_images_dir, None, None, epd_w, epd_h,
+            &display_data,
+            &orch_status,
+            &config,
+            &state.paths.static_images_dir,
+            None,
+            None,
+            epd_w,
+            epd_h,
         );
 
         let png_img = renderer::flatten_for_png(&frame);
@@ -100,7 +110,8 @@ fn run_epd_thread(state: Arc<AppState>) {
     );
 
     let mut last_image_change = Instant::now();
-    let mut image_change_interval = rand_duration(config.image_display_delaymin, config.image_display_delaymax);
+    let mut image_change_interval =
+        rand_duration(config.image_display_delaymin, config.image_display_delaymax);
     let mut frame_count: u64 = 0;
 
     loop {
@@ -109,7 +120,11 @@ fn run_epd_thread(state: Arc<AppState>) {
         }
 
         let orch_status = state.status.blocking_read().clone();
-        let action = if orch_status.current_action.is_empty() { "IDLE" } else { &orch_status.current_action };
+        let action = if orch_status.current_action.is_empty() {
+            "IDLE"
+        } else {
+            &orch_status.current_action
+        };
 
         if let Some(comment) = comments.get_comment(action) {
             state.display.blocking_write().bjorn_says = comment;
@@ -120,17 +135,22 @@ fn run_epd_thread(state: Arc<AppState>) {
         if last_image_change.elapsed() >= image_change_interval {
             status_imgs.randomize_current();
             last_image_change = Instant::now();
-            image_change_interval = rand_duration(config.image_display_delaymin, config.image_display_delaymax);
+            image_change_interval =
+                rand_duration(config.image_display_delaymin, config.image_display_delaymax);
         }
 
         let status_icon = status_imgs.status_icon(action).cloned();
         let character_img = status_imgs.pick_character(action).cloned();
 
         let frame = renderer::render_frame(
-            &display_data, &orch_status, &config,
+            &display_data,
+            &orch_status,
+            &config,
             &state.paths.static_images_dir,
-            character_img.as_ref(), status_icon.as_ref(),
-            epd_w, epd_h,
+            character_img.as_ref(),
+            status_icon.as_ref(),
+            epd_w,
+            epd_h,
         );
 
         // Composite: dither icon layer for gradients, stamp crisp 1-bit text on top

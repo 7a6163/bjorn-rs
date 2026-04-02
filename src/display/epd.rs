@@ -67,7 +67,13 @@ mod hw {
             let busy = gpio.get(BUSY_PIN).ok()?.into_input();
             let mut pwr = gpio.get(PWR_PIN).ok()?.into_output();
             pwr.set_high();
-            Some(Self { spi, rst, dc, busy, pwr })
+            Some(Self {
+                spi,
+                rst,
+                dc,
+                busy,
+                pwr,
+            })
         }
 
         fn send_command(&mut self, cmd: u8) {
@@ -91,7 +97,11 @@ mod hw {
         fn wait_busy(&self, busy_high: bool) {
             let deadline = std::time::Instant::now() + Duration::from_secs(10);
             loop {
-                let is_busy = if busy_high { self.busy.is_high() } else { self.busy.is_low() };
+                let is_busy = if busy_high {
+                    self.busy.is_high()
+                } else {
+                    self.busy.is_low()
+                };
                 if !is_busy {
                     return;
                 }
@@ -296,11 +306,17 @@ mod hw {
     ];
 
     // ==== 2.13" V1 ====
-    struct Epd2in13V1 { hw: SpiHw }
+    struct Epd2in13V1 {
+        hw: SpiHw,
+    }
 
     impl EpdDisplay for Epd2in13V1 {
-        fn width(&self) -> u32 { 122 }
-        fn height(&self) -> u32 { 250 }
+        fn width(&self) -> u32 {
+            122
+        }
+        fn height(&self) -> u32 {
+            250
+        }
 
         fn init(&mut self) -> Result<(), String> {
             self.hw.reset(200);
@@ -328,7 +344,9 @@ mod hw {
             Ok(())
         }
 
-        fn init_partial(&mut self) -> Result<(), String> { self.init() }
+        fn init_partial(&mut self) -> Result<(), String> {
+            self.init()
+        }
 
         fn display(&mut self, buf: &[u8]) {
             self.hw.set_window(0, 0, 122 - 1, 250 - 1);
@@ -344,7 +362,9 @@ mod hw {
             self.hw.wait_busy(true);
         }
 
-        fn display_base_image(&mut self, buf: &[u8]) { self.display(buf); }
+        fn display_base_image(&mut self, buf: &[u8]) {
+            self.display(buf);
+        }
 
         fn display_partial(&mut self, buf: &[u8]) -> Result<(), String> {
             // V1 has no partial update — do full update
@@ -367,11 +387,17 @@ mod hw {
     }
 
     // ==== 2.13" V2 ====
-    struct Epd2in13V2 { hw: SpiHw }
+    struct Epd2in13V2 {
+        hw: SpiHw,
+    }
 
     impl EpdDisplay for Epd2in13V2 {
-        fn width(&self) -> u32 { 122 }
-        fn height(&self) -> u32 { 250 }
+        fn width(&self) -> u32 {
+            122
+        }
+        fn height(&self) -> u32 {
+            250
+        }
 
         fn init(&mut self) -> Result<(), String> {
             self.hw.reset(200);
@@ -475,7 +501,9 @@ mod hw {
     }
 
     // ==== 2.13" V3 ====
-    struct Epd2in13V3 { hw: SpiHw }
+    struct Epd2in13V3 {
+        hw: SpiHw,
+    }
 
     impl Epd2in13V3 {
         fn set_lut(&mut self, lut: &[u8; 159]) {
@@ -496,8 +524,12 @@ mod hw {
     }
 
     impl EpdDisplay for Epd2in13V3 {
-        fn width(&self) -> u32 { 122 }
-        fn height(&self) -> u32 { 250 }
+        fn width(&self) -> u32 {
+            122
+        }
+        fn height(&self) -> u32 {
+            250
+        }
 
         fn init(&mut self) -> Result<(), String> {
             self.hw.reset(20);
@@ -524,7 +556,9 @@ mod hw {
             Ok(())
         }
 
-        fn init_partial(&mut self) -> Result<(), String> { self.init() }
+        fn init_partial(&mut self) -> Result<(), String> {
+            self.init()
+        }
 
         fn display(&mut self, buf: &[u8]) {
             self.hw.send_command(0x24);
@@ -587,11 +621,17 @@ mod hw {
     }
 
     // ==== 2.13" V4 ====
-    struct Epd2in13V4 { hw: SpiHw }
+    struct Epd2in13V4 {
+        hw: SpiHw,
+    }
 
     impl EpdDisplay for Epd2in13V4 {
-        fn width(&self) -> u32 { 122 }
-        fn height(&self) -> u32 { 250 }
+        fn width(&self) -> u32 {
+            122
+        }
+        fn height(&self) -> u32 {
+            250
+        }
 
         fn init(&mut self) -> Result<(), String> {
             self.hw.reset(20);
@@ -617,7 +657,9 @@ mod hw {
             Ok(())
         }
 
-        fn init_partial(&mut self) -> Result<(), String> { self.init() }
+        fn init_partial(&mut self) -> Result<(), String> {
+            self.init()
+        }
 
         fn display(&mut self, buf: &[u8]) {
             self.hw.send_command(0x24);
@@ -677,7 +719,9 @@ mod hw {
     }
 
     // ==== 2.7" ====
-    struct Epd2in7 { hw: SpiHw }
+    struct Epd2in7 {
+        hw: SpiHw,
+    }
 
     impl Epd2in7 {
         fn set_lut(&mut self) {
@@ -695,8 +739,12 @@ mod hw {
     }
 
     impl EpdDisplay for Epd2in7 {
-        fn width(&self) -> u32 { 176 }
-        fn height(&self) -> u32 { 264 }
+        fn width(&self) -> u32 {
+            176
+        }
+        fn height(&self) -> u32 {
+            264
+        }
 
         fn init(&mut self) -> Result<(), String> {
             self.hw.reset(200);
@@ -710,8 +758,13 @@ mod hw {
             }
             // Power optimization
             for &(cmd2, val) in &[
-                (0x60u8, 0xA5u8), (0x89, 0xA5), (0x90, 0x00), (0x93, 0x2A),
-                (0xA0, 0xA5), (0xA1, 0x00), (0x73, 0x41),
+                (0x60u8, 0xA5u8),
+                (0x89, 0xA5),
+                (0x90, 0x00),
+                (0x93, 0x2A),
+                (0xA0, 0xA5),
+                (0xA1, 0x00),
+                (0x73, 0x41),
             ] {
                 self.hw.send_command(0xF8);
                 self.hw.send_data(cmd2);
@@ -733,7 +786,9 @@ mod hw {
             Ok(())
         }
 
-        fn init_partial(&mut self) -> Result<(), String> { self.init() }
+        fn init_partial(&mut self) -> Result<(), String> {
+            self.init()
+        }
 
         fn display(&mut self, buf: &[u8]) {
             let size = ((176 + 7) / 8) * 264;
@@ -747,7 +802,9 @@ mod hw {
             self.hw.wait_busy(false);
         }
 
-        fn display_base_image(&mut self, buf: &[u8]) { self.display(buf); }
+        fn display_base_image(&mut self, buf: &[u8]) {
+            self.display(buf);
+        }
 
         fn display_partial(&mut self, buf: &[u8]) -> Result<(), String> {
             // 2.7" has no partial update — do full update
@@ -799,18 +856,33 @@ mod hw {
 mod hw {
     use super::*;
 
-    struct StubDisplay { w: u32, h: u32 }
+    struct StubDisplay {
+        w: u32,
+        h: u32,
+    }
 
     impl EpdDisplay for StubDisplay {
-        fn width(&self) -> u32 { self.w }
-        fn height(&self) -> u32 { self.h }
-        fn init(&mut self) -> Result<(), String> { Ok(()) }
-        fn init_partial(&mut self) -> Result<(), String> { Ok(()) }
+        fn width(&self) -> u32 {
+            self.w
+        }
+        fn height(&self) -> u32 {
+            self.h
+        }
+        fn init(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+        fn init_partial(&mut self) -> Result<(), String> {
+            Ok(())
+        }
         fn display(&mut self, _buf: &[u8]) {}
         fn display_base_image(&mut self, _buf: &[u8]) {}
-        fn display_partial(&mut self, _buf: &[u8]) -> Result<(), String> { Ok(()) }
+        fn display_partial(&mut self, _buf: &[u8]) -> Result<(), String> {
+            Ok(())
+        }
         fn clear(&mut self) {}
-        fn sleep(&mut self) -> Result<(), String> { Ok(()) }
+        fn sleep(&mut self) -> Result<(), String> {
+            Ok(())
+        }
     }
 
     pub fn create_display(_epd_type: &str) -> Option<Box<dyn EpdDisplay>> {

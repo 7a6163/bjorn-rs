@@ -18,9 +18,7 @@ impl Connector for MongoConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            mongo_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { mongo_try_connect(&ip, port, &user, &password).await })
     }
 }
 
@@ -30,11 +28,7 @@ async fn mongo_try_connect(ip: &str, port: u16, user: &str, password: &str) -> b
     let result = tokio::time::timeout(
         Duration::from_secs(10),
         Command::new("mongosh")
-            .args([
-                &uri,
-                "--eval", "db.runCommand({ping:1})",
-                "--quiet",
-            ])
+            .args([&uri, "--eval", "db.runCommand({ping:1})", "--quiet"])
             .output(),
     )
     .await;
@@ -48,11 +42,7 @@ async fn mongo_try_connect(ip: &str, port: u16, user: &str, password: &str) -> b
             let legacy = tokio::time::timeout(
                 Duration::from_secs(10),
                 Command::new("mongo")
-                    .args([
-                        &uri,
-                        "--eval", "db.runCommand({ping:1})",
-                        "--quiet",
-                    ])
+                    .args([&uri, "--eval", "db.runCommand({ping:1})", "--quiet"])
                     .output(),
             )
             .await;

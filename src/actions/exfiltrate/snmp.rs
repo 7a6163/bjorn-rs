@@ -14,9 +14,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataSnmp;
 
 impl Action for StealDataSnmp {
-    fn name(&self) -> &'static str { "StealDataSNMP" }
-    fn port(&self) -> Option<u16> { Some(161) }
-    fn parent(&self) -> Option<&'static str> { Some("SNMPBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataSNMP"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(161)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("SNMPBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
@@ -61,10 +67,10 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
 
 /// OID subtrees to walk.
 const WALK_OIDS: &[(&str, &str)] = &[
-    ("1.3.6.1.2.1.1", "system"),          // sysDescr, sysName, sysLocation, etc.
-    ("1.3.6.1.2.1.2.2", "interfaces"),     // Interface table
-    ("1.3.6.1.2.1.4.22", "arp_table"),     // ARP cache
-    ("1.3.6.1.2.1.4.21", "routes"),        // IP route table
+    ("1.3.6.1.2.1.1", "system"),       // sysDescr, sysName, sysLocation, etc.
+    ("1.3.6.1.2.1.2.2", "interfaces"), // Interface table
+    ("1.3.6.1.2.1.4.22", "arp_table"), // ARP cache
+    ("1.3.6.1.2.1.4.21", "routes"),    // IP route table
 ];
 
 async fn walk_snmp(
@@ -77,11 +83,8 @@ async fn walk_snmp(
     for (oid, name) in WALK_OIDS {
         let output = tokio::process::Command::new("snmpwalk")
             .args([
-                "-v2c",
-                "-c", community,
-                "-OQ",  // Quick print
-                ip,
-                oid,
+                "-v2c", "-c", community, "-OQ", // Quick print
+                ip, oid,
             ])
             .output()
             .await

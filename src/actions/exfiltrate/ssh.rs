@@ -55,12 +55,7 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
 
         let result = timeout(Duration::from_secs(240), async {
             steal_via_ssh(
-                &target.ip,
-                user,
-                password,
-                file_names,
-                file_exts,
-                &local_dir,
+                &target.ip, user, password, file_names, file_exts, &local_dir,
             )
             .await
         })
@@ -120,7 +115,9 @@ async fn steal_via_ssh(
     }
 
     let mut count = 0;
-    let local_dir_canonical = local_dir.canonicalize().unwrap_or_else(|_| local_dir.to_path_buf());
+    let local_dir_canonical = local_dir
+        .canonicalize()
+        .unwrap_or_else(|_| local_dir.to_path_buf());
 
     for remote_file in &matching {
         // Strip path traversal components and build safe local path

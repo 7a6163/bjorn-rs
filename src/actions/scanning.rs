@@ -63,8 +63,16 @@ impl NetworkScanner {
 
         // Step 2: Resolve MAC addresses
         let config = self.state.config();
-        let mac_blacklist: HashSet<&str> = config.mac_scan_blacklist.iter().map(|s| s.as_str()).collect();
-        let ip_blacklist: HashSet<&str> = config.ip_scan_blacklist.iter().map(|s| s.as_str()).collect();
+        let mac_blacklist: HashSet<&str> = config
+            .mac_scan_blacklist
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
+        let ip_blacklist: HashSet<&str> = config
+            .ip_scan_blacklist
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
 
         let mut hosts: Vec<DiscoveredHost> = Vec::new();
         for (ip, hostname) in &live_ips {
@@ -97,9 +105,7 @@ impl NetworkScanner {
 
         let semaphore = Arc::new(Semaphore::new(200));
         for host in &mut hosts {
-            host.open_ports = self
-                .scan_ports(&host.ip, &ports_to_scan, &semaphore)
-                .await;
+            host.open_ports = self.scan_ports(&host.ip, &ports_to_scan, &semaphore).await;
         }
 
         // Step 4: Upsert into knowledge base
@@ -198,10 +204,7 @@ impl NetworkScanner {
 
     /// Discover live hosts using `nmap -sn`.
     async fn discover_hosts(&self, network: &str) -> Vec<(String, String)> {
-        let output = Command::new("nmap")
-            .args(["-sn", network])
-            .output()
-            .await;
+        let output = Command::new("nmap").args(["-sn", network]).output().await;
 
         let output = match output {
             Ok(o) => {
@@ -271,12 +274,7 @@ impl NetworkScanner {
     }
 
     /// Async TCP port scan — connect to each port with timeout.
-    async fn scan_ports(
-        &self,
-        ip: &str,
-        ports: &[u16],
-        semaphore: &Arc<Semaphore>,
-    ) -> Vec<u16> {
+    async fn scan_ports(&self, ip: &str, ports: &[u16], semaphore: &Arc<Semaphore>) -> Vec<u16> {
         let mut handles = Vec::with_capacity(ports.len());
         let ip = ip.to_string();
 
@@ -316,11 +314,7 @@ fn parse_nmap_sn_output(output: &str) -> Vec<(String, String)> {
             // Format: "hostname (ip)" or just "ip"
             if let Some(paren_start) = rest.find('(') {
                 current_hostname = rest[..paren_start].trim().to_string();
-                current_ip = Some(
-                    rest[paren_start + 1..]
-                        .trim_end_matches(')')
-                        .to_string(),
-                );
+                current_ip = Some(rest[paren_start + 1..].trim_end_matches(')').to_string());
             } else {
                 current_ip = Some(rest.trim().to_string());
                 current_hostname = String::new();
@@ -351,8 +345,14 @@ Nmap done: 256 IP addresses (3 hosts up) scanned in 2.50 seconds"#;
 
         let results = parse_nmap_sn_output(output);
         assert_eq!(results.len(), 3);
-        assert_eq!(results[0], ("192.168.1.1".to_string(), "router.local".to_string()));
+        assert_eq!(
+            results[0],
+            ("192.168.1.1".to_string(), "router.local".to_string())
+        );
         assert_eq!(results[1], ("192.168.1.50".to_string(), String::new()));
-        assert_eq!(results[2], ("192.168.1.100".to_string(), "victim.local".to_string()));
+        assert_eq!(
+            results[2],
+            ("192.168.1.100".to_string(), "victim.local".to_string())
+        );
     }
 }

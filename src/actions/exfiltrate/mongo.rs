@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealDataMongo;
 
 impl Action for StealDataMongo {
-    fn name(&self) -> &'static str { "StealDataMongo" }
-    fn port(&self) -> Option<u16> { Some(27017) }
-    fn parent(&self) -> Option<&'static str> { Some("MongoBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealDataMongo"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(27017)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("MongoBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,

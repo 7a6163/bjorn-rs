@@ -20,9 +20,7 @@ impl Connector for RedisConnector {
         let ip = ip.to_string();
         let user = user.to_string();
         let password = password.to_string();
-        Box::pin(async move {
-            redis_try_connect(&ip, port, &user, &password).await
-        })
+        Box::pin(async move { redis_try_connect(&ip, port, &user, &password).await })
     }
 }
 
@@ -33,11 +31,18 @@ async fn redis_try_connect(ip: &str, port: u16, user: &str, password: &str) -> b
 
         // Try AUTH with password only first (Redis < 6), then with username (Redis 6+ ACL)
         let auth_cmd = if user.is_empty() || user == "default" {
-            format!("*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n", password.len(), password)
+            format!(
+                "*2\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n",
+                password.len(),
+                password
+            )
         } else {
             format!(
                 "*3\r\n$4\r\nAUTH\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
-                user.len(), user, password.len(), password
+                user.len(),
+                user,
+                password.len(),
+                password
             )
         };
 
@@ -52,10 +57,7 @@ async fn redis_try_connect(ip: &str, port: u16, user: &str, password: &str) -> b
 
         // Also try no-auth PING to detect open Redis
         if password.is_empty() {
-            stream
-                .write_all(b"*1\r\n$4\r\nPING\r\n")
-                .await
-                .ok()?;
+            stream.write_all(b"*1\r\n$4\r\nPING\r\n").await.ok()?;
             let n = stream.read(&mut buf).await.ok()?;
             let response = std::str::from_utf8(&buf[..n]).ok()?;
             if response.contains("+PONG") {

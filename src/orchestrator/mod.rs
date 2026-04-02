@@ -29,10 +29,7 @@ impl Orchestrator {
         let actions = build_action_registry(&state);
         let semaphore = Arc::new(Semaphore::new(10));
 
-        tracing::info!(
-            actions = actions.len(),
-            "orchestrator initialized"
-        );
+        tracing::info!(actions = actions.len(), "orchestrator initialized");
 
         Self {
             state,
@@ -78,7 +75,8 @@ impl Orchestrator {
                 // Idle wait before next cycle
                 let config = self.state.config();
                 self.update_status("IDLE", "").await;
-                self.idle_wait(Duration::from_secs(config.scan_interval)).await;
+                self.idle_wait(Duration::from_secs(config.scan_interval))
+                    .await;
             }
         }
 
@@ -161,8 +159,7 @@ impl Orchestrator {
                             }
                             let _permit = self.semaphore.acquire().await.expect("semaphore closed");
                             self.update_status(child.name(), &host.ip).await;
-                            let child_outcome =
-                                child.execute(&target, &self.state).await;
+                            let child_outcome = child.execute(&target, &self.state).await;
                             let child_status = match &child_outcome {
                                 ActionOutcome::Success => "success",
                                 ActionOutcome::Failed(_) => "failed",
@@ -242,7 +239,12 @@ impl Orchestrator {
     /// Check whether an action should be run based on retry delays.
     async fn should_run_action(&self, host_id: i64, action_name: &str) -> bool {
         let config = self.state.config();
-        let latest = match self.state.kb.latest_action_result(host_id, action_name).await {
+        let latest = match self
+            .state
+            .kb
+            .latest_action_result(host_id, action_name)
+            .await
+        {
             Ok(Some(r)) => r,
             Ok(None) => return true, // Never run before
             Err(_) => return true,
@@ -294,10 +296,7 @@ impl Orchestrator {
         };
 
         for host in &hosts {
-            if !self
-                .should_run_action(host.id, "NmapVulnScanner")
-                .await
-            {
+            if !self.should_run_action(host.id, "NmapVulnScanner").await {
                 continue;
             }
 

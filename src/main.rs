@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::signal;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 use config::{BjornConfig, PathConfig};
 use state::{AppState, KnowledgeBase};
@@ -184,18 +184,15 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Wait for tasks with a timeout
-    let shutdown_timeout = tokio::time::timeout(
-        Duration::from_secs(10),
-        async {
-            let _ = tokio::join!(
-                orchestrator_handle,
-                display_handle,
-                web_handle,
-                llm_handle,
-                sentinel_handle,
-            );
-        }
-    );
+    let shutdown_timeout = tokio::time::timeout(Duration::from_secs(10), async {
+        let _ = tokio::join!(
+            orchestrator_handle,
+            display_handle,
+            web_handle,
+            llm_handle,
+            sentinel_handle,
+        );
+    });
 
     if shutdown_timeout.await.is_err() {
         tracing::warn!("shutdown timed out after 10s, forcing exit");

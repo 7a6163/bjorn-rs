@@ -13,9 +13,15 @@ use super::{build_output_dir, get_credentials};
 pub struct StealFilesTelnet;
 
 impl Action for StealFilesTelnet {
-    fn name(&self) -> &'static str { "StealFilesTelnet" }
-    fn port(&self) -> Option<u16> { Some(23) }
-    fn parent(&self) -> Option<&'static str> { Some("TelnetBruteforce") }
+    fn name(&self) -> &'static str {
+        "StealFilesTelnet"
+    }
+    fn port(&self) -> Option<u16> {
+        Some(23)
+    }
+    fn parent(&self) -> Option<&'static str> {
+        Some("TelnetBruteforce")
+    }
 
     fn execute<'a>(
         &'a self,
