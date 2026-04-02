@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::Path;
 use axum::response::Redirect;
 use axum::routing::{get, post};
 use tower_http::compression::CompressionLayer;
@@ -24,13 +23,38 @@ fn build_router(state: Arc<AppState>) -> Router {
             "/",
             get(|| async { Redirect::temporary("/web/index.html") }),
         )
-        // -- HTML page redirects: /*.html → /web/*.html --
-        // Python serves /loot.html from web/loot.html, etc.
+        // -- HTML page routes: Python serves /*.html from web/*.html --
         .route(
-            "/{page}.html",
-            get(|Path(page): Path<String>| async move {
-                Redirect::temporary(&format!("/web/{page}.html"))
-            }),
+            "/index.html",
+            get(|| async { Redirect::temporary("/web/index.html") }),
+        )
+        .route(
+            "/config.html",
+            get(|| async { Redirect::temporary("/web/config.html") }),
+        )
+        .route(
+            "/network.html",
+            get(|| async { Redirect::temporary("/web/network.html") }),
+        )
+        .route(
+            "/netkb.html",
+            get(|| async { Redirect::temporary("/web/netkb.html") }),
+        )
+        .route(
+            "/bjorn.html",
+            get(|| async { Redirect::temporary("/web/bjorn.html") }),
+        )
+        .route(
+            "/loot.html",
+            get(|| async { Redirect::temporary("/web/loot.html") }),
+        )
+        .route(
+            "/credentials.html",
+            get(|| async { Redirect::temporary("/web/credentials.html") }),
+        )
+        .route(
+            "/manual.html",
+            get(|| async { Redirect::temporary("/web/manual.html") }),
         )
         // -- GET API routes --
         .route("/load_config", get(handlers::load_config))
