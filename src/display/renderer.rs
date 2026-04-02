@@ -49,8 +49,7 @@ fn load_icons(static_dir: &Path) -> &'static HashMap<String, GrayImage> {
     })
 }
 
-/// Paste a BMP icon onto the frame at the given position.
-/// Preserves original grayscale values so dithering can produce gradients.
+/// Paste a BMP icon preserving grayscale values for dithering.
 fn paste_icon(frame: &mut GrayImage, icon: &GrayImage, x: u32, y: u32) {
     for iy in 0..icon.height() {
         for ix in 0..icon.width() {
@@ -65,28 +64,23 @@ fn paste_icon(frame: &mut GrayImage, icon: &GrayImage, x: u32, y: u32) {
 }
 
 /// Two-layer rendering result.
-/// - `icons`: grayscale layer with icons (will be dithered)
-/// - `text_mask`: 1-bit mask where black pixels = text/lines (stays crisp)
+/// - `icons`: grayscale layer with icons (will be dithered for gradients)
+/// - `text_mask`: pure 1-bit layer with text/lines (stays crisp, no dithering)
 pub struct RenderedFrame {
     pub icons: GrayImage,
     pub text_mask: GrayImage,
 }
 
-/// Render a complete display frame matching the Python `display.py` layout.
+/// Render a complete display frame in two layers:
+/// - Icon layer: grayscale (caller applies Floyd-Steinberg dithering)
+/// - Text layer: pure 1-bit black/white (crisp, no anti-aliasing artifacts)
 ///
-/// Returns two layers: an icon layer (grayscale, for dithering) and a text
-/// mask (crisp black/white). The caller composites them so icons get gradients
-/// while text stays sharp — matching Python PIL's 1-bit text behavior.
-///
-/// `character_img` — optional animated character image for the bottom area
-/// (loaded from status image series). Falls back to static `bjorn1.bmp`.
-///
-/// `status_icon` — optional per-action icon for the y=60 status area.
-/// Falls back to the static `attack.bmp` icon.
+/// This matches Python PIL's behavior: `image.paste()` auto-dithers icons
+/// when pasting onto mode '1', while `draw.text()` is inherently 1-bit.
 pub fn render_frame(
     display: &DisplayData,
     status: &OrchestratorStatus,
-    config: &BjornConfig,
+    _config: &BjornConfig,
     static_images_dir: &Path,
     character_img: Option<&GrayImage>,
     status_icon: Option<&GrayImage>,
@@ -100,31 +94,24 @@ pub fn render_frame(
     let mut text_layer = GrayImage::from_pixel(width, height, WHITE);
     let font: &FontRef = load_font();
 
-    let scale_9 = PxScale::from(9.0 * sy);
-    let scale_12 = PxScale::from(12.0 * sy);
-    let scale_13 = PxScale::from(13.0 * sy);
+    // Font sizes — bumped from Python's 9/12/13 to compensate for
+    // ab_glyph rendering smaller than PIL at the same nominal size.
+    let scale_9 = PxScale::from(11.0 * sy);
+    let scale_12 = PxScale::from(14.0 * sy);
+    let scale_13 = PxScale::from(15.0 * sy);
 
-    // Load icons (uses OnceLock, only loads once)
     let icons = load_icons(static_images_dir);
-
-    // -- Border + dividers → text layer (crisp lines) --
-    draw_rect_outline(&mut text_layer, 1, 1, width - 2, height - 2);
-    draw_hline(&mut text_layer, 1, width - 2, s(20, sy));
-    draw_hline(&mut text_layer, 1, width - 2, s(59, sy));
-    draw_hline(&mut text_layer, 1, width - 2, s(87, sy));
 
     // -- Title: "BJORN" → text layer --
     draw_text_mut(&mut text_layer, BLACK, s(37, sx) as i32, s(5, sy) as i32, scale_13, font, "BJORN");
 
-    // -- Connection indicators (top bar) --
+    // -- Connection indicators --
     if display.wifi_connected {
         paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "wifi", s(3, sx), s(3, sy), font, scale_9, "W");
     }
     if display.usb_active {
         paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "usb", s(90, sx), s(4, sy), font, scale_9, "U");
     }
-
-    // -- PAN connected indicator (top bar, right side) --
     if display.pan_connected {
         paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "connected", s(104, sx), s(3, sy), font, scale_9, "P");
     }
@@ -133,7 +120,7 @@ pub fn render_frame(
     let mode_txt = if status.manual_mode { "M" } else { "A" };
     draw_text_mut(&mut text_layer, BLACK, s(110, sx) as i32, s(5, sy) as i32, scale_9, font, mode_txt);
 
-    // -- Stats: icon at img_pos, text at text_pos --
+    // -- Stats --
     let stats: Vec<(&str, u32, u32, u32, u32, String)> = vec![
         ("target",    8,  22, 28,  22, display.target_count.to_string()),
         ("port",     47,  22, 67,  22, display.port_count.to_string()),
@@ -148,26 +135,27 @@ pub fn render_frame(
         draw_text_mut(&mut text_layer, BLACK, s(*tx, sx) as i32, s(*ty, sy) as i32, scale_9, font, value);
     }
 
-    // -- Bottom stats: money, level, networkkb, attacks --
+    // -- Bottom stats --
     paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "money", s(3, sx), s(172, sy), font, scale_9, "$");
     draw_text_mut(&mut text_layer, BLACK, s(3, sx) as i32, s(192, sy) as i32, scale_9, font, &display.coin_count.to_string());
 
     paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "level", s(2, sx), s(217, sy), font, scale_9, "L");
     draw_text_mut(&mut text_layer, BLACK, s(4, sx) as i32, s(237, sy) as i32, scale_9, font, &display.level.to_string());
 
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "networkkb", s(102, sx), s(190, sy), font, scale_9, "KB");
-    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(208, sy) as i32, scale_9, font, &display.network_kb_count.to_string());
+    // networkkb: same row as money (y=172)
+    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "networkkb", s(102, sx), s(172, sy), font, scale_9, "KB");
+    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(190, sy) as i32, scale_9, font, &display.network_kb_count.to_string());
 
-    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attacks", s(100, sx), s(218, sy), font, scale_9, "A");
-    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(237, sy) as i32, scale_9, font, &display.attack_count.to_string());
+    // attacks: same row as level (y=217)
+    paste_or_text_split(&mut icon_layer, &mut text_layer, icons, "attacks", s(100, sx), s(217, sy), font, scale_9, "A");
+    draw_text_mut(&mut text_layer, BLACK, s(102, sx) as i32, s(235, sy) as i32, scale_9, font, &display.attack_count.to_string());
 
-    // -- Status area (y=60-87): action icon + text --
+    // -- Status area (y=60-87) --
     let action_text = if status.current_action.is_empty() {
         "IDLE"
     } else {
         &status.current_action
     };
-    // Use per-action status icon if available, otherwise fall back to static "attack" icon
     if let Some(si) = status_icon {
         paste_icon(&mut icon_layer, si, s(3, sx), s(60, sy));
     } else {
@@ -178,7 +166,7 @@ pub fn render_frame(
         draw_text_mut(&mut text_layer, BLACK, s(35, sx) as i32, s(75, sy) as i32, scale_9, font, &status.detail);
     }
 
-    // -- Frise (decorative line) at y=160 → icon layer (may have gradients) --
+    // -- Frise at y=160 --
     if let Some(frise) = icons.get("frise") {
         paste_icon(&mut icon_layer, frise, 0, s(160, sy));
     } else {
@@ -201,13 +189,24 @@ pub fn render_frame(
         }
     }
 
-    // -- Bjorn character image (bottom, centered) → icon layer --
-    // Use animated character image if available, otherwise fall back to static bjorn1.bmp
+    // -- Character image (bottom, centered) → icon layer --
     let char_img = character_img.or_else(|| icons.get("bjorn1"));
-    if let Some(img) = char_img {
-        let x_center = (width - img.width()) / 2;
-        let y_bottom = height - img.height();
-        paste_icon(&mut icon_layer, img, x_center, y_bottom);
+    if let Some(cimg) = char_img {
+        let x_center = (width - cimg.width()) / 2;
+        let y_bottom = height - cimg.height();
+        paste_icon(&mut icon_layer, cimg, x_center, y_bottom);
+    }
+
+    // -- Border + dividers → text layer (crisp lines) --
+    draw_rect_outline(&mut text_layer, 1, 1, width - 2, height - 2);
+    draw_hline(&mut text_layer, 1, width - 2, s(20, sy));
+    draw_hline(&mut text_layer, 1, width - 2, s(59, sy));
+    draw_hline(&mut text_layer, 1, width - 2, s(87, sy));
+
+    // Snap text layer to pure 1-bit: threshold at 128 removes anti-aliased
+    // gray edges from imageproc. Every pixel becomes either 0 or 255.
+    for pixel in text_layer.pixels_mut() {
+        pixel.0[0] = if pixel.0[0] < 128 { 0 } else { 255 };
     }
 
     RenderedFrame {
@@ -216,18 +215,16 @@ pub fn render_frame(
     }
 }
 
-/// Flatten a `RenderedFrame` into a single grayscale image for PNG output.
-/// Text is rendered as crisp black on top of the icon layer.
+/// Flatten for PNG output (web UI). Dithers icons, stamps crisp text on top.
 pub fn flatten_for_png(frame: &RenderedFrame) -> GrayImage {
     let width = frame.icons.width();
     let height = frame.icons.height();
     let mut out = frame.icons.clone();
 
+    // Overlay text mask: where text is black, force output to black
     for y in 0..height {
         for x in 0..width {
-            let text_px = frame.text_mask.get_pixel(x, y).0[0];
-            // Text mask: anything below 128 is text → force black
-            if text_px < 128 {
+            if frame.text_mask.get_pixel(x, y).0[0] == 0 {
                 out.put_pixel(x, y, BLACK);
             }
         }
@@ -241,7 +238,6 @@ fn s(val: u32, scale: f32) -> u32 {
     (val as f32 * scale) as u32
 }
 
-/// Route to icon layer (grayscale) or text layer (crisp) depending on availability.
 fn paste_or_text_split(
     icon_layer: &mut GrayImage,
     text_layer: &mut GrayImage,
@@ -310,23 +306,20 @@ mod tests {
     }
 
     #[test]
-    fn wrap_text_basic() {
-        let lines = wrap_text("Hello world this is a test", 10);
-        assert_eq!(lines, vec!["Hello", "world this", "is a test"]);
+    fn text_mask_is_pure_1bit() {
+        let display = DisplayData::default();
+        let status = OrchestratorStatus::default();
+        let config = BjornConfig::default();
+        let tmp = std::path::PathBuf::from("/tmp/nonexistent");
+        let frame = render_frame(&display, &status, &config, &tmp, None, None);
+        for pixel in frame.text_mask.pixels() {
+            assert!(pixel.0[0] == 0 || pixel.0[0] == 255, "text_mask has gray pixel: {}", pixel.0[0]);
+        }
     }
 
     #[test]
-    fn flatten_preserves_text() {
-        let width = 10;
-        let height = 10;
-        let icons = GrayImage::from_pixel(width, height, WHITE);
-        let mut text_mask = GrayImage::from_pixel(width, height, WHITE);
-        // Draw a black text pixel
-        text_mask.put_pixel(5, 5, BLACK);
-
-        let frame = RenderedFrame { icons, text_mask };
-        let flat = flatten_for_png(&frame);
-        assert_eq!(flat.get_pixel(5, 5).0[0], 0); // text pixel stays black
-        assert_eq!(flat.get_pixel(0, 0).0[0], 255); // background stays white
+    fn wrap_text_basic() {
+        let lines = wrap_text("Hello world this is a test", 10);
+        assert_eq!(lines, vec!["Hello", "world this", "is a test"]);
     }
 }

@@ -13,38 +13,24 @@ use crate::state::AppState;
 use comments::CommentEngine;
 use status_images::StatusImages;
 
-/// Main display loop.
-///
-/// Renders the Bjorn UI to the e-Paper HAT and saves a PNG for the web UI.
-/// On non-Pi systems (no SPI), it only generates the PNG.
-///
-/// The e-Paper SPI operations are blocking (thread::sleep in wait_busy),
-/// so we run the hardware part on a dedicated OS thread to avoid blocking
-/// the tokio runtime.
+/// Main display loop — renders PNG for web UI + starts EPD hardware thread.
 pub async fn run(state: Arc<AppState>) {
     let config = state.config();
-
     let web_dir = state.paths.web_dir.clone();
     let png_path = web_dir.join("screen.png");
 
-    // Ensure web dir exists
     let _ = tokio::fs::create_dir_all(&web_dir).await;
 
-    // Start the EPD hardware on a dedicated thread
     let epd_state = Arc::clone(&state);
-    let epd_handle = std::thread::spawn(move || {
-        run_epd_thread(epd_state);
-    });
+    let epd_handle = std::thread::spawn(move || run_epd_thread(epd_state));
 
-    tracing::info!(png = %png_path.display(), "display loop starting (headless PNG + EPD thread)");
+    tracing::info!(png = %png_path.display(), "display loop starting");
 
-    // Initialize comment engine
     let mut comments = CommentEngine::new(
         &state.paths.comments_json,
         config.comment_delaymin,
         config.comment_delaymax,
     );
-
     let mut frame_count: u64 = 0;
 
     loop {
@@ -53,31 +39,18 @@ pub async fn run(state: Arc<AppState>) {
         }
 
         let orch_status = state.status.read().await.clone();
+        let action = if orch_status.current_action.is_empty() { "IDLE" } else { &orch_status.current_action };
 
-        // Update comments based on current action
-        let action = if orch_status.current_action.is_empty() {
-            "IDLE"
-        } else {
-            &orch_status.current_action
-        };
         if let Some(comment) = comments.get_comment(action) {
-            let mut display = state.display.write().await;
-            display.bjorn_says = comment;
+            state.display.write().await.bjorn_says = comment;
         }
 
         let display_data = state.display.read().await.clone();
-
-        // Render two-layer frame (no character animation in headless PNG)
         let frame = renderer::render_frame(
-            &display_data,
-            &orch_status,
-            &config,
-            &state.paths.static_images_dir,
-            None,
-            None,
+            &display_data, &orch_status, &config,
+            &state.paths.static_images_dir, None, None,
         );
 
-        // Flatten to single image for PNG (web UI)
         let png_img = renderer::flatten_for_png(&frame);
         if let Err(e) = png_img.save(&png_path) {
             tracing::error!(%e, "failed to save screen.png");
@@ -85,13 +58,12 @@ pub async fn run(state: Arc<AppState>) {
 
         frame_count += 1;
         if frame_count <= 3 {
-            tracing::info!(frame = frame_count, "display frame rendered (PNG saved)");
+            tracing::info!(frame = frame_count, "display frame rendered");
         }
 
         sleep(Duration::from_secs(config.screen_delay)).await;
     }
 
-    // Wait for EPD thread to finish (it checks shutdown too)
     let _ = epd_handle.join();
     tracing::info!("display task stopped");
 }
@@ -114,27 +86,17 @@ fn run_epd_thread(state: Arc<AppState>) {
         return;
     }
     tracing::info!("e-Paper V4 initialized (122x250)");
+    let _ = epd.init_partial();
 
-    if let Err(e) = epd.init_partial() {
-        tracing::warn!(%e, "e-Paper partial init failed");
-    }
-
-    // Load status images (per-action character animations + status icons)
     let mut status_imgs = StatusImages::new(&state.paths.status_images_dir);
-
-    // Comment engine for the EPD thread
     let mut comments = CommentEngine::new(
         &state.paths.comments_json,
         config.comment_delaymin,
         config.comment_delaymax,
     );
 
-    // Image randomizer timer — switch character image periodically
-    let image_delay_min = config.image_display_delaymin;
-    let image_delay_max = config.image_display_delaymax;
     let mut last_image_change = Instant::now();
-    let mut image_change_interval = rand_duration(image_delay_min, image_delay_max);
-
+    let mut image_change_interval = rand_duration(config.image_display_delaymin, config.image_display_delaymax);
     let mut frame_count: u64 = 0;
 
     loop {
@@ -142,55 +104,40 @@ fn run_epd_thread(state: Arc<AppState>) {
             break;
         }
 
-        // Read display data (blocking read on the RwLock)
         let orch_status = state.status.blocking_read().clone();
+        let action = if orch_status.current_action.is_empty() { "IDLE" } else { &orch_status.current_action };
 
-        // Update comments
-        let action = if orch_status.current_action.is_empty() {
-            "IDLE"
-        } else {
-            &orch_status.current_action
-        };
         if let Some(comment) = comments.get_comment(action) {
-            let mut display = state.display.blocking_write();
-            display.bjorn_says = comment;
+            state.display.blocking_write().bjorn_says = comment;
         }
 
         let display_data = state.display.blocking_read().clone();
 
-        // Periodically randomize character image
         if last_image_change.elapsed() >= image_change_interval {
             status_imgs.randomize_current();
             last_image_change = Instant::now();
-            image_change_interval = rand_duration(image_delay_min, image_delay_max);
+            image_change_interval = rand_duration(config.image_display_delaymin, config.image_display_delaymax);
         }
 
-        // Pick status icon first (immutable borrow), then character (mutable borrow)
         let status_icon = status_imgs.status_icon(action).cloned();
         let character_img = status_imgs.pick_character(action).cloned();
 
-        // Render two-layer frame
         let frame = renderer::render_frame(
-            &display_data,
-            &orch_status,
-            &config,
+            &display_data, &orch_status, &config,
             &state.paths.static_images_dir,
-            character_img.as_ref(),
-            status_icon.as_ref(),
+            character_img.as_ref(), status_icon.as_ref(),
         );
 
-        // Composite: dither icon layer, then stamp crisp text on top
+        // Composite: dither icon layer for gradients, stamp crisp 1-bit text on top
         let buf = composite_to_epd_buffer(&frame, screen_reversed);
 
         if frame_count == 0 {
-            // First frame: write base image to both RAM banks (required for partial updates)
             tracing::info!("sending base image to EPD (full update)");
             epd.display_base_image(&buf);
         } else {
             if let Err(e) = epd.display_partial(&buf) {
                 tracing::error!(%e, "epd display_partial failed");
             }
-            // Send twice like Python version for reliable partial update
             let _ = epd.display_partial(&buf);
         }
 
@@ -202,39 +149,29 @@ fn run_epd_thread(state: Arc<AppState>) {
         std::thread::sleep(Duration::from_secs(config.screen_delay));
     }
 
-    // Sleep the display on shutdown
     let _ = epd.sleep();
     tracing::info!("EPD thread stopped");
 }
 
-fn rand_duration(min_secs: u64, max_secs: u64) -> Duration {
-    let mut rng = rand::rng();
-    let secs = rand::Rng::random_range(&mut rng, min_secs..=max_secs);
-    Duration::from_secs(secs)
-}
-
-/// Composite two-layer frame into EPD buffer:
-/// 1. Dither the icon layer (grayscale → 1-bit with gradients)
-/// 2. Overlay crisp text mask (no dithering, hard threshold)
-/// 3. Pack into 1-bit EPD buffer
+/// Composite two layers into EPD buffer:
+/// 1. Floyd-Steinberg dither the icon layer (grayscale → 1-bit with gradients)
+/// 2. Stamp pure 1-bit text mask on top (no dithering, already thresholded)
+/// 3. Pack into EPD bit buffer
 fn composite_to_epd_buffer(frame: &renderer::RenderedFrame, rotate: bool) -> Vec<u8> {
-    let dithered_icons = floyd_steinberg_dither(&frame.icons);
+    let mut merged = floyd_steinberg_dither(&frame.icons);
 
-    let width = dithered_icons.width();
-    let height = dithered_icons.height();
+    let width = merged.width();
+    let height = merged.height();
 
-    // Merge: text mask wins (crisp black), otherwise use dithered icon
-    let mut merged = dithered_icons;
+    // Text mask is already pure 0/255. Stamp black text pixels on top.
     for y in 0..height {
         for x in 0..width {
-            let text_px = frame.text_mask.get_pixel(x, y).0[0];
-            if text_px < 128 {
+            if frame.text_mask.get_pixel(x, y).0[0] == 0 {
                 merged.put_pixel(x, y, Luma([0u8]));
             }
         }
     }
 
-    // Apply rotation for V4
     let final_img = if rotate {
         image::imageops::rotate180(&merged)
     } else {
@@ -244,12 +181,10 @@ fn composite_to_epd_buffer(frame: &renderer::RenderedFrame, rotate: bool) -> Vec
     gray_to_epd_buffer(&final_img)
 }
 
-/// Apply Floyd-Steinberg dithering to a grayscale image, converting it to 1-bit
-/// with simulated gradients — matches Python PIL `convert('1')` behavior.
+/// Floyd-Steinberg dithering — matches Python PIL `convert('1')`.
 fn floyd_steinberg_dither(img: &image::GrayImage) -> image::GrayImage {
     let width = img.width() as usize;
     let height = img.height() as usize;
-
     let mut pixels: Vec<i16> = img.pixels().map(|p| p.0[0] as i16).collect();
 
     for y in 0..height {
@@ -279,7 +214,6 @@ fn floyd_steinberg_dither(img: &image::GrayImage) -> image::GrayImage {
     image::GrayImage::from_raw(width as u32, height as u32, out).unwrap()
 }
 
-/// Pack a 1-bit (thresholded) grayscale image into EPD buffer format.
 fn gray_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
     let width = img.width() as usize;
     let height = img.height() as usize;
@@ -288,8 +222,7 @@ fn gray_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
 
     for y in 0..height {
         for x in 0..width {
-            let pixel = img.get_pixel(x as u32, y as u32).0[0];
-            if pixel < 128 {
+            if img.get_pixel(x as u32, y as u32).0[0] < 128 {
                 let byte_idx = y * line_width + x / 8;
                 let bit_idx = 7 - (x % 8);
                 buf[byte_idx] &= !(1 << bit_idx);
@@ -297,4 +230,9 @@ fn gray_to_epd_buffer(img: &image::GrayImage) -> Vec<u8> {
         }
     }
     buf
+}
+
+fn rand_duration(min_secs: u64, max_secs: u64) -> Duration {
+    let mut rng = rand::rng();
+    Duration::from_secs(rand::Rng::random_range(&mut rng, min_secs..=max_secs))
 }
