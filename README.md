@@ -12,7 +12,7 @@ Rust rewrite of Bjorn — an autonomous network scanning, vulnerability assessme
 
 | | Python Version | Rust Version |
 |---|---|---|
-| Deploy Size | ~100MB (runtime + deps) | **6.7MB** (single binary) |
+| Deploy Size | ~100MB (runtime + deps) | **~9MB** (single binary) |
 | Startup Time | ~10-15 seconds | **< 3 seconds** |
 | Memory | ~100MB+ (pandas, etc.) | **< 50MB** |
 | Concurrency Model | threading + GIL | tokio async |
@@ -77,11 +77,11 @@ Exfiltration modules are child actions — they only run after their parent brut
 
 ## Supported Hardware
 
-| Board | Architecture | Target |
-|-------|-------------|--------|
-| Pi Zero W2 | AArch64 (64-bit) | `aarch64-unknown-linux-gnu` |
-| Pi Zero W | ARMv6 (32-bit) | `arm-unknown-linux-gnueabihf` |
-| Pi 3/4/5 | AArch64 (64-bit) | `aarch64-unknown-linux-gnu` |
+| Board | Architecture | Release Binary |
+|-------|-------------|----------------|
+| Pi Zero W2 | AArch64 (64-bit) | `bjorn-aarch64` |
+| Pi 3/4/5 | AArch64 (64-bit) | `bjorn-aarch64` |
+| Pi Zero W | ARMv6 (32-bit) | `bjorn-armv6` |
 
 ## Quick Start
 

@@ -9,8 +9,6 @@ use imageproc::drawing::{draw_line_segment_mut, draw_text_mut};
 use crate::config::BjornConfig;
 use crate::state::{DisplayData, OrchestratorStatus};
 
-use super::epd_v4::{EPD_HEIGHT, EPD_WIDTH};
-
 const REF_WIDTH: f32 = 122.0;
 const REF_HEIGHT: f32 = 250.0;
 const BLACK: Luma<u8> = Luma([0u8]);
@@ -84,9 +82,11 @@ pub fn render_frame(
     static_images_dir: &Path,
     character_img: Option<&GrayImage>,
     status_icon: Option<&GrayImage>,
+    epd_width: u32,
+    epd_height: u32,
 ) -> RenderedFrame {
-    let width = EPD_WIDTH;
-    let height = EPD_HEIGHT;
+    let width = epd_width;
+    let height = epd_height;
     let sx = width as f32 / REF_WIDTH;
     let sy = height as f32 / REF_HEIGHT;
 
@@ -298,11 +298,11 @@ mod tests {
         let status = OrchestratorStatus::default();
         let config = BjornConfig::default();
         let tmp = std::path::PathBuf::from("/tmp/nonexistent");
-        let frame = render_frame(&display, &status, &config, &tmp, None, None);
-        assert_eq!(frame.icons.width(), EPD_WIDTH);
-        assert_eq!(frame.icons.height(), EPD_HEIGHT);
-        assert_eq!(frame.text_mask.width(), EPD_WIDTH);
-        assert_eq!(frame.text_mask.height(), EPD_HEIGHT);
+        let frame = render_frame(&display, &status, &config, &tmp, None, None, 122, 250);
+        assert_eq!(frame.icons.width(), 122);
+        assert_eq!(frame.icons.height(), 250);
+        assert_eq!(frame.text_mask.width(), 122);
+        assert_eq!(frame.text_mask.height(), 250);
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
         let status = OrchestratorStatus::default();
         let config = BjornConfig::default();
         let tmp = std::path::PathBuf::from("/tmp/nonexistent");
-        let frame = render_frame(&display, &status, &config, &tmp, None, None);
+        let frame = render_frame(&display, &status, &config, &tmp, None, None, 122, 250);
         for pixel in frame.text_mask.pixels() {
             assert!(pixel.0[0] == 0 || pixel.0[0] == 255, "text_mask has gray pixel: {}", pixel.0[0]);
         }

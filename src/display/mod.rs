@@ -1,4 +1,5 @@
 pub mod comments;
+pub mod epd;
 pub mod epd_v4;
 pub mod renderer;
 pub mod status_images;
@@ -46,9 +47,10 @@ pub async fn run(state: Arc<AppState>) {
         }
 
         let display_data = state.display.read().await.clone();
+        let (epd_w, epd_h) = epd::display_dimensions(&config.epd_type);
         let frame = renderer::render_frame(
             &display_data, &orch_status, &config,
-            &state.paths.static_images_dir, None, None,
+            &state.paths.static_images_dir, None, None, epd_w, epd_h,
         );
 
         let png_img = renderer::flatten_for_png(&frame);
@@ -73,7 +75,7 @@ fn run_epd_thread(state: Arc<AppState>) {
     let config = state.config();
     let screen_reversed = true;
 
-    let mut epd = match epd_v4::Epd2in13V4::new() {
+    let mut epd = match epd::create_display(&config.epd_type) {
         Some(epd) => epd,
         None => {
             tracing::info!("no SPI hardware detected, EPD thread exiting");
@@ -85,7 +87,9 @@ fn run_epd_thread(state: Arc<AppState>) {
         tracing::warn!(%e, "e-Paper init failed");
         return;
     }
-    tracing::info!("e-Paper V4 initialized (122x250)");
+    let epd_w = epd.width();
+    let epd_h = epd.height();
+    tracing::info!(epd_type = %config.epd_type, width = epd_w, height = epd_h, "e-Paper initialized");
     let _ = epd.init_partial();
 
     let mut status_imgs = StatusImages::new(&state.paths.status_images_dir);
@@ -126,6 +130,7 @@ fn run_epd_thread(state: Arc<AppState>) {
             &display_data, &orch_status, &config,
             &state.paths.static_images_dir,
             character_img.as_ref(), status_icon.as_ref(),
+            epd_w, epd_h,
         );
 
         // Composite: dither icon layer for gradients, stamp crisp 1-bit text on top
