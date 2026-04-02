@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::Path;
 use axum::response::Redirect;
 use axum::routing::{get, post};
 use tower_http::compression::CompressionLayer;
@@ -22,6 +23,14 @@ fn build_router(state: Arc<AppState>) -> Router {
         .route(
             "/",
             get(|| async { Redirect::temporary("/web/index.html") }),
+        )
+        // -- HTML page redirects: /*.html → /web/*.html --
+        // Python serves /loot.html from web/loot.html, etc.
+        .route(
+            "/{page}.html",
+            get(|Path(page): Path<String>| async move {
+                Redirect::temporary(&format!("/web/{page}.html"))
+            }),
         )
         // -- GET API routes --
         .route("/load_config", get(handlers::load_config))
