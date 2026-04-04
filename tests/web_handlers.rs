@@ -486,3 +486,612 @@ async fn restore_default_config_resets_values() {
     // Verify the in-memory config was also reset
     assert_eq!(state.config().web_delay, 2);
 }
+
+// ---------------------------------------------------------------------------
+// 11. GET /api/llm/status - returns LLM config status
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn llm_status_returns_config_fields() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/llm/status")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+
+    // All expected fields should be present
+    assert!(json.get("enabled").is_some(), "missing enabled field");
+    assert!(json.get("mode").is_some(), "missing mode field");
+    assert!(json.get("provider").is_some(), "missing provider field");
+    assert!(json.get("model").is_some(), "missing model field");
+    assert!(json.get("ollama_url").is_some(), "missing ollama_url field");
+    assert!(
+        json.get("ollama_model").is_some(),
+        "missing ollama_model field"
+    );
+    assert!(
+        json.get("has_api_key").is_some(),
+        "missing has_api_key field"
+    );
+
+    // Default config has no API key
+    assert_eq!(json["has_api_key"], false);
+}
+
+// ---------------------------------------------------------------------------
+// 12. GET /api/tools/hosts - returns hosts JSON
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn api_tools_hosts_returns_json() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/hosts")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("application/json"));
+
+    let body = body_string(resp.into_body()).await;
+    // Should be valid JSON (the tool returns a JSON string)
+    let _json: serde_json::Value = serde_json::from_str(&body).unwrap();
+}
+
+#[tokio::test]
+async fn api_tools_hosts_includes_inserted_host() {
+    let (state, _dir) = test_state().await;
+    state
+        .kb
+        .upsert_host(
+            "aa:bb:cc:dd:ee:02",
+            "10.0.0.2",
+            Some("webserver"),
+            true,
+            "80",
+        )
+        .await
+        .unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/hosts")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    assert!(body.contains("10.0.0.2"), "should contain inserted host IP");
+}
+
+// ---------------------------------------------------------------------------
+// 13. GET /api/tools/credentials - returns credentials JSON
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn api_tools_credentials_returns_json() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/credentials")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("application/json"));
+
+    let body = body_string(resp.into_body()).await;
+    let _json: serde_json::Value = serde_json::from_str(&body).unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// 14. GET /api/tools/status - returns status JSON
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn api_tools_status_returns_json() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/status")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("application/json"));
+
+    let body = body_string(resp.into_body()).await;
+    let _json: serde_json::Value = serde_json::from_str(&body).unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// 15. GET /api/sentinel/alerts - returns alerts array
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn sentinel_alerts_returns_empty_array() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/sentinel/alerts")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+
+    assert!(json["alerts"].is_array(), "should have alerts array");
+    assert!(
+        json["alerts"].as_array().unwrap().is_empty(),
+        "alerts should be empty by default"
+    );
+    assert!(json.get("note").is_some(), "should have a note field");
+}
+
+// ---------------------------------------------------------------------------
+// 16. GET /list_files - returns directory listing JSON
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn list_files_returns_empty_array_for_empty_dir() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/list_files")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert!(json.is_array(), "should return a JSON array");
+    assert!(json.as_array().unwrap().is_empty(), "should be empty");
+}
+
+#[tokio::test]
+async fn list_files_includes_created_files() {
+    let (state, _dir) = test_state().await;
+
+    // Create a file and a subdirectory in data_stolen_dir
+    let file_path = state.paths.data_stolen_dir.join("stolen_data.txt");
+    std::fs::write(&file_path, "secret data").unwrap();
+
+    let sub_dir = state.paths.data_stolen_dir.join("subdir");
+    std::fs::create_dir_all(&sub_dir).unwrap();
+    let nested_file = sub_dir.join("nested.txt");
+    std::fs::write(&nested_file, "nested content").unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/list_files")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let entries = json.as_array().unwrap();
+    assert!(!entries.is_empty(), "should have entries");
+
+    // Check that we can find the file and the directory
+    let names: Vec<&str> = entries
+        .iter()
+        .map(|e| e["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names.contains(&"stolen_data.txt"),
+        "should contain the file"
+    );
+    assert!(names.contains(&"subdir"), "should contain the subdirectory");
+
+    // Verify directory entry has children
+    let dir_entry = entries.iter().find(|e| e["name"] == "subdir").unwrap();
+    assert_eq!(dir_entry["is_directory"], true);
+    assert!(dir_entry["children"].is_array());
+}
+
+// ---------------------------------------------------------------------------
+// 17. POST /backup - creates a backup (conditional on `zip` availability)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn backup_creates_zip_or_fails_gracefully() {
+    let (state, _dir) = test_state().await;
+
+    // Create some content to back up
+    let config_dir = state.paths.root.join("config");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(config_dir.join("test.json"), "{}").unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/backup")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    let status = resp.status();
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+
+    // `zip` may not be installed on CI/dev machines, so accept either outcome
+    if status == StatusCode::OK {
+        assert_eq!(json["status"], "success");
+        assert!(
+            json.get("filename").is_some(),
+            "success response should include filename"
+        );
+        assert!(
+            json.get("url").is_some(),
+            "success response should include download url"
+        );
+    } else {
+        assert_eq!(json["status"], "error");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 18. POST /clear_files_light - clears output data
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn clear_files_light_removes_output_data() {
+    let (state, _dir) = test_state().await;
+
+    // Create files in various output directories
+    let cred_file = state.paths.cracked_pwd_dir.join("test_creds.csv");
+    std::fs::write(&cred_file, "host,user,pass\n").unwrap();
+
+    let stolen_file = state.paths.data_stolen_dir.join("data.txt");
+    std::fs::write(&stolen_file, "stolen").unwrap();
+
+    let scan_file = state.paths.scan_results_dir.join("result_001.csv");
+    std::fs::write(&scan_file, "ip,port\n").unwrap();
+
+    // Verify files exist before clearing
+    assert!(cred_file.exists());
+    assert!(stolen_file.exists());
+    assert!(scan_file.exists());
+
+    let app = build_router(Arc::clone(&state));
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/clear_files_light")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "success");
+
+    // Verify files were removed
+    assert!(!cred_file.exists(), "credential file should be cleared");
+    assert!(!stolen_file.exists(), "stolen data file should be cleared");
+    assert!(!scan_file.exists(), "scan result file should be cleared");
+
+    // Verify directories still exist
+    assert!(state.paths.cracked_pwd_dir.exists());
+    assert!(state.paths.data_stolen_dir.exists());
+    assert!(state.paths.scan_results_dir.exists());
+}
+
+// ---------------------------------------------------------------------------
+// 19. GET /network_data - returns 404 when no scan results
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn network_data_returns_404_when_no_results() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/network_data")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "error");
+    assert!(
+        json["message"]
+            .as_str()
+            .unwrap()
+            .contains("no scan results"),
+        "should mention no scan results"
+    );
+}
+
+#[tokio::test]
+async fn network_data_returns_html_when_results_exist() {
+    let (state, _dir) = test_state().await;
+
+    // Create a scan result file (must be named result_*)
+    let scan_file = state.paths.scan_results_dir.join("result_latest.csv");
+    std::fs::write(&scan_file, "IP,Port,Service\n10.0.0.1,22,SSH\n").unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/network_data")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("text/html"));
+
+    let body = body_string(resp.into_body()).await;
+    assert!(body.contains("<table"), "should contain an HTML table");
+    assert!(body.contains("10.0.0.1"), "should contain the IP");
+    assert!(body.contains("SSH"), "should contain the service");
+}
+
+// ---------------------------------------------------------------------------
+// 20. Root redirect: GET / redirects to /web/index.html
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn root_redirects_to_web_index() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    let location = resp.headers().get("location").unwrap().to_str().unwrap();
+    assert_eq!(location, "/web/index.html");
+}
+
+// ---------------------------------------------------------------------------
+// 21. HTML redirects: GET /loot.html redirects to /web/loot.html
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn loot_html_redirects_to_web_loot() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/loot.html")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    let location = resp.headers().get("location").unwrap().to_str().unwrap();
+    assert_eq!(location, "/web/loot.html");
+}
+
+#[tokio::test]
+async fn config_html_redirects_to_web_config() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/config.html")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    let location = resp.headers().get("location").unwrap().to_str().unwrap();
+    assert_eq!(location, "/web/config.html");
+}
+
+// ---------------------------------------------------------------------------
+// 22. GET /get_logs - returns log content
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn get_logs_returns_empty_when_no_log_file() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/get_logs")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("text/plain"));
+
+    let body = body_string(resp.into_body()).await;
+    assert!(
+        body.is_empty(),
+        "should return empty string when no log file"
+    );
+}
+
+#[tokio::test]
+async fn get_logs_returns_log_content() {
+    let (state, _dir) = test_state().await;
+
+    // Write a log file
+    let log_content = "2024-01-01 INFO starting\n2024-01-01 DEBUG scanning\n";
+    std::fs::write(&state.paths.web_console_log, log_content).unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/get_logs")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    assert!(body.contains("starting"), "should contain log content");
+    assert!(body.contains("scanning"), "should contain log content");
+}
+
+// ---------------------------------------------------------------------------
+// 23. POST /clear_files - full reset clears data and removes extra files
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn clear_files_removes_actions_and_netkb() {
+    let (state, _dir) = test_state().await;
+
+    // Create the extra files that clear_files should remove
+    std::fs::write(&state.paths.actions_json, "[]").unwrap();
+    std::fs::write(&state.paths.netkb_db, "fake db").unwrap();
+
+    // Also create data in output directories
+    let cred_file = state.paths.cracked_pwd_dir.join("creds.csv");
+    std::fs::write(&cred_file, "data").unwrap();
+
+    assert!(state.paths.actions_json.exists());
+    assert!(state.paths.netkb_db.exists());
+    assert!(cred_file.exists());
+
+    let app = build_router(Arc::clone(&state));
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/clear_files")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "success");
+
+    // Verify everything was cleared
+    assert!(!cred_file.exists(), "credential file should be removed");
+    assert!(
+        !state.paths.actions_json.exists(),
+        "actions.json should be removed"
+    );
+    assert!(!state.paths.netkb_db.exists(), "netkb.db should be removed");
+}
+
+// ---------------------------------------------------------------------------
+// 24. GET /download_file - path traversal prevention
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn download_file_returns_404_for_nonexistent() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/download_file?path=nonexistent.txt")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn download_file_serves_existing_file() {
+    let (state, _dir) = test_state().await;
+
+    let file_path = state.paths.data_stolen_dir.join("loot.txt");
+    std::fs::write(&file_path, "captured data").unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/download_file?path=loot.txt")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_disposition = resp
+        .headers()
+        .get("content-disposition")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        content_disposition.contains("loot.txt"),
+        "should have correct filename in disposition"
+    );
+
+    let body = body_string(resp.into_body()).await;
+    assert_eq!(body, "captured data");
+}

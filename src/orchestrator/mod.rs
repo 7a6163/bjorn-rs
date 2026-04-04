@@ -14,6 +14,9 @@ use crate::state::AppState;
 
 use scheduling::{RetryConfig, parent_succeeded, parse_ports, should_retry_action};
 
+#[cfg(test)]
+mod tests;
+
 /// The Orchestrator is Bjorn's brain — it coordinates scanning, vulnerability
 /// assessment, brute-force attacks, and data exfiltration in a continuous loop.
 ///
