@@ -121,4 +121,64 @@ mod tests {
         assert!(c3.is_some());
         assert_eq!(c3.unwrap(), "scan1");
     }
+
+    #[test]
+    fn load_from_missing_file_returns_default_comments() {
+        let path = Path::new("/tmp/nonexistent_bjorn_comments_12345.json");
+        let engine = CommentEngine::new(path, 1, 2);
+
+        // Should have the default IDLE theme
+        assert!(engine.themes.contains_key("IDLE"));
+        let idle = engine.themes.get("IDLE").unwrap();
+        assert!(idle.contains(&"Hacking away...".to_string()));
+        assert!(idle.contains(&"Zzzz...".to_string()));
+    }
+
+    #[test]
+    fn load_from_invalid_json_returns_default_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("comments.json");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, "this is not valid json {{{{").unwrap();
+
+        let engine = CommentEngine::new(&path, 1, 2);
+
+        assert!(engine.themes.contains_key("IDLE"));
+        let idle = engine.themes.get("IDLE").unwrap();
+        assert_eq!(idle.len(), 2);
+    }
+
+    #[test]
+    fn idle_fallback_when_theme_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("comments.json");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, r#"{{"IDLE":["idle_comment"]}}"#).unwrap();
+
+        let mut engine = CommentEngine::new(&path, 1, 2);
+        let comment = engine.get_comment("NonExistentTheme");
+
+        assert!(comment.is_some());
+        assert_eq!(comment.unwrap(), "idle_comment");
+    }
+
+    #[test]
+    fn multiple_calls_within_delay_return_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("comments.json");
+        let mut f = std::fs::File::create(&path).unwrap();
+        write!(f, r#"{{"IDLE":["idle1"]}}"#).unwrap();
+
+        // Use a large delay so calls within the window always return None
+        let mut engine = CommentEngine::new(&path, 3600, 3600);
+
+        // First call returns a comment
+        let c1 = engine.get_comment("IDLE");
+        assert!(c1.is_some());
+
+        // Subsequent calls with same theme within delay return None
+        assert!(engine.get_comment("IDLE").is_none());
+        assert!(engine.get_comment("IDLE").is_none());
+        assert!(engine.get_comment("IDLE").is_none());
+    }
 }

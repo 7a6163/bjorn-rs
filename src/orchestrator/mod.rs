@@ -1,7 +1,9 @@
+pub mod scheduling;
+
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
@@ -9,6 +11,8 @@ use crate::actions::scanning::NetworkScanner;
 use crate::actions::vuln_scanner::VulnScanner;
 use crate::actions::{Action, ActionOutcome, Target, build_action_registry};
 use crate::state::AppState;
+
+use scheduling::{RetryConfig, parent_succeeded, parse_ports, should_retry_action};
 
 /// The Orchestrator is Bjorn's brain — it coordinates scanning, vulnerability
 /// assessment, brute-force attacks, and data exfiltration in a continuous loop.
@@ -107,11 +111,7 @@ impl Orchestrator {
             }
 
             for host in &hosts {
-                let ports: Vec<u16> = host
-                    .ports
-                    .split(';')
-                    .filter_map(|p| p.parse().ok())
-                    .collect();
+                let ports = parse_ports(&host.ports);
 
                 // Check port match
                 if let Some(action_port) = action.port() {
@@ -183,11 +183,7 @@ impl Orchestrator {
             }
 
             for host in &hosts {
-                let ports: Vec<u16> = host
-                    .ports
-                    .split(';')
-                    .filter_map(|p| p.parse().ok())
-                    .collect();
+                let ports = parse_ports(&host.ports);
 
                 if let Some(action_port) = action.port() {
                     if !ports.contains(&action_port) {
@@ -197,7 +193,7 @@ impl Orchestrator {
 
                 // Check parent succeeded
                 let parent_name = action.parent().unwrap();
-                if !self.parent_succeeded(host.id, parent_name).await {
+                if !self.has_parent_succeeded(host.id, parent_name).await {
                     continue;
                 }
 
@@ -238,49 +234,39 @@ impl Orchestrator {
 
     /// Check whether an action should be run based on retry delays.
     async fn should_run_action(&self, host_id: i64, action_name: &str) -> bool {
-        let config = self.state.config();
+        let bjorn_config = self.state.config();
         let latest = match self
             .state
             .kb
             .latest_action_result(host_id, action_name)
             .await
         {
-            Ok(Some(r)) => r,
-            Ok(None) => return true, // Never run before
+            Ok(r) => r,
             Err(_) => return true,
         };
 
-        let now = Utc::now().naive_utc();
-        let elapsed = (now - latest.executed_at).num_seconds().max(0) as u64;
+        let retry_config = RetryConfig {
+            retry_success_actions: bjorn_config.retry_success_actions,
+            success_retry_delay: bjorn_config.success_retry_delay,
+            retry_failed_actions: bjorn_config.retry_failed_actions,
+            failed_retry_delay: bjorn_config.failed_retry_delay,
+        };
 
-        match latest.status.as_str() {
-            "success" => {
-                if !config.retry_success_actions {
-                    return false;
-                }
-                elapsed >= config.success_retry_delay
-            }
-            "failed" => {
-                if !config.retry_failed_actions {
-                    return false;
-                }
-                elapsed >= config.failed_retry_delay
-            }
-            _ => true,
-        }
+        should_retry_action(latest.as_ref(), Utc::now().naive_utc(), &retry_config)
     }
 
     /// Check if a parent action has succeeded for a given host.
-    async fn parent_succeeded(&self, host_id: i64, parent_name: &str) -> bool {
-        match self
+    async fn has_parent_succeeded(&self, host_id: i64, parent_name: &str) -> bool {
+        let result = match self
             .state
             .kb
             .latest_action_result(host_id, parent_name)
             .await
         {
-            Ok(Some(r)) => r.status == "success",
-            _ => false,
-        }
+            Ok(r) => r,
+            Err(_) => return false,
+        };
+        parent_succeeded(result.as_ref())
     }
 
     /// Run vulnerability scans on alive hosts if enabled and interval has elapsed.
@@ -300,11 +286,7 @@ impl Orchestrator {
                 continue;
             }
 
-            let ports: Vec<u16> = host
-                .ports
-                .split(';')
-                .filter_map(|p| p.parse().ok())
-                .collect();
+            let ports = parse_ports(&host.ports);
 
             let _permit = self.semaphore.acquire().await.expect("semaphore closed");
             let success = self.vuln_scanner.scan_host(host.id, &host.ip, &ports).await;

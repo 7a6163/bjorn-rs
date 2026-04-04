@@ -11,7 +11,7 @@ use crate::state::AppState;
 use super::handlers;
 
 /// Build the Axum router with all routes.
-fn build_router(state: Arc<AppState>) -> Router {
+pub fn build_router(state: Arc<AppState>) -> Router {
     // Static file fallback: serves $BJORN_ROOT so that /web/images/... resolves
     // to $BJORN_ROOT/web/images/... (matches Python's SimpleHTTPRequestHandler
     // which serves from the Bjorn root directory).

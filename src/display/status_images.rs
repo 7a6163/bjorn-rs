@@ -122,3 +122,40 @@ impl StatusImages {
         images.and_then(|imgs| imgs.get(self.current_index))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn new_with_nonexistent_directory_does_not_panic() {
+        let si = StatusImages::new(Path::new("/tmp/bjorn_nonexistent_dir_12345"));
+        assert!(si.series.is_empty());
+        assert!(si.status_icons.is_empty());
+    }
+
+    #[test]
+    fn pick_character_returns_none_when_no_images_loaded() {
+        let mut si = StatusImages::new(Path::new("/tmp/bjorn_nonexistent_dir_12345"));
+        let result = si.pick_character("IDLE");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn status_icon_returns_none_for_unknown_status() {
+        let si = StatusImages::new(Path::new("/tmp/bjorn_nonexistent_dir_12345"));
+        assert!(si.status_icon("UnknownAction").is_none());
+        assert!(si.status_icon("IDLE").is_none());
+        assert!(si.status_icon("").is_none());
+    }
+
+    #[test]
+    fn randomize_current_does_not_panic_on_empty_state() {
+        let mut si = StatusImages::new(Path::new("/tmp/bjorn_nonexistent_dir_12345"));
+        // Should not panic even with no images and empty current_status
+        si.randomize_current();
+        si.current_status = "SomeAction".to_string();
+        si.randomize_current();
+    }
+}

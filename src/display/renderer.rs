@@ -523,4 +523,307 @@ mod tests {
         let lines = wrap_text("Hello world this is a test", 10);
         assert_eq!(lines, vec!["Hello", "world this", "is a test"]);
     }
+
+    // -- paste_icon tests --
+
+    #[test]
+    fn paste_icon_copies_dark_pixels() {
+        let mut frame = GrayImage::from_pixel(10, 10, WHITE);
+        // Create a 3x3 icon with a dark center pixel and white border
+        let mut icon = GrayImage::from_pixel(3, 3, WHITE);
+        icon.put_pixel(1, 1, Luma([0u8])); // black center
+        icon.put_pixel(0, 0, Luma([100u8])); // dark corner
+
+        paste_icon(&mut frame, &icon, 2, 3);
+
+        // Dark pixels should be copied
+        assert_eq!(
+            frame.get_pixel(3, 4).0[0],
+            0,
+            "black center should be pasted"
+        );
+        assert_eq!(
+            frame.get_pixel(2, 3).0[0],
+            100,
+            "dark corner should be pasted"
+        );
+        // White/near-white pixels (>=250) should NOT be copied (stay white)
+        assert_eq!(
+            frame.get_pixel(4, 3).0[0],
+            255,
+            "white icon pixel should not overwrite frame"
+        );
+        // Pixels outside the icon area should remain white
+        assert_eq!(
+            frame.get_pixel(0, 0).0[0],
+            255,
+            "untouched pixel stays white"
+        );
+    }
+
+    #[test]
+    fn paste_icon_boundary_no_panic() {
+        // Icon extends beyond the frame — should silently clip, not panic
+        let mut frame = GrayImage::from_pixel(5, 5, WHITE);
+        let icon = GrayImage::from_pixel(10, 10, Luma([50u8]));
+
+        paste_icon(&mut frame, &icon, 3, 3);
+
+        // Only the portion that fits (3..5, 3..5) should be written
+        assert_eq!(frame.get_pixel(3, 3).0[0], 50);
+        assert_eq!(frame.get_pixel(4, 4).0[0], 50);
+        // Pixels before the paste origin remain white
+        assert_eq!(frame.get_pixel(0, 0).0[0], 255);
+    }
+
+    #[test]
+    fn paste_icon_fully_outside_frame() {
+        let mut frame = GrayImage::from_pixel(5, 5, WHITE);
+        let icon = GrayImage::from_pixel(3, 3, Luma([0u8]));
+
+        // Paste at position beyond frame dimensions — nothing written, no panic
+        paste_icon(&mut frame, &icon, 100, 100);
+
+        for pixel in frame.pixels() {
+            assert_eq!(pixel.0[0], 255, "frame should be untouched");
+        }
+    }
+
+    // -- flatten_for_png tests --
+
+    #[test]
+    fn flatten_for_png_text_overrides_icons() {
+        let width = 10;
+        let height = 10;
+        // Icon layer: mid-gray everywhere
+        let icons = GrayImage::from_pixel(width, height, Luma([128u8]));
+        // Text mask: white everywhere except one black pixel at (5,5)
+        let mut text_mask = GrayImage::from_pixel(width, height, WHITE);
+        text_mask.put_pixel(5, 5, BLACK);
+
+        let frame = RenderedFrame { icons, text_mask };
+        let out = flatten_for_png(&frame);
+
+        // The text pixel should override the icon layer
+        assert_eq!(
+            out.get_pixel(5, 5).0[0],
+            0,
+            "text black overrides icon gray"
+        );
+        // Non-text pixels keep the icon value
+        assert_eq!(
+            out.get_pixel(0, 0).0[0],
+            128,
+            "non-text pixel keeps icon value"
+        );
+    }
+
+    #[test]
+    fn flatten_for_png_all_white_text_preserves_icons() {
+        let icons = GrayImage::from_pixel(4, 4, Luma([42u8]));
+        let text_mask = GrayImage::from_pixel(4, 4, WHITE);
+        let frame = RenderedFrame { icons, text_mask };
+        let out = flatten_for_png(&frame);
+
+        for pixel in out.pixels() {
+            assert_eq!(
+                pixel.0[0], 42,
+                "icon value preserved when text mask is all white"
+            );
+        }
+    }
+
+    // -- wrap_text edge cases --
+
+    #[test]
+    fn wrap_text_empty_string() {
+        let lines = wrap_text("", 10);
+        assert!(lines.is_empty(), "empty input should produce no lines");
+    }
+
+    #[test]
+    fn wrap_text_single_long_word() {
+        // A single word longer than max_chars cannot be split, so it stays on one line
+        let lines = wrap_text("abcdefghijklmnopqrstuvwxyz", 10);
+        assert_eq!(lines, vec!["abcdefghijklmnopqrstuvwxyz"]);
+    }
+
+    #[test]
+    fn wrap_text_exact_fit() {
+        // "hello five" is exactly 10 chars — should fit on one line
+        let lines = wrap_text("hello five", 10);
+        assert_eq!(lines, vec!["hello five"]);
+    }
+
+    #[test]
+    fn wrap_text_one_char_over() {
+        // "hello fiver" is 11 chars — should wrap
+        let lines = wrap_text("hello fiver", 10);
+        assert_eq!(lines, vec!["hello", "fiver"]);
+    }
+
+    #[test]
+    fn wrap_text_whitespace_only() {
+        let lines = wrap_text("   \t  ", 10);
+        assert!(lines.is_empty(), "whitespace-only input produces no lines");
+    }
+
+    // -- render_frame with character_img and status_icon --
+
+    #[test]
+    fn render_frame_with_character_and_status_icon() {
+        let display = DisplayData::default();
+        let status = OrchestratorStatus {
+            current_action: "scanning".into(),
+            ..Default::default()
+        };
+        let config = BjornConfig::default();
+        let tmp = std::path::PathBuf::from("/tmp/nonexistent");
+
+        // Small grayscale images to serve as character and status icon
+        let character_img = GrayImage::from_pixel(20, 30, Luma([80u8]));
+        let status_icon = GrayImage::from_pixel(12, 12, Luma([60u8]));
+
+        let frame = render_frame(
+            &display,
+            &status,
+            &config,
+            &tmp,
+            Some(&character_img),
+            Some(&status_icon),
+            122,
+            250,
+        );
+
+        // Frame should still be the correct size
+        assert_eq!(frame.icons.width(), 122);
+        assert_eq!(frame.icons.height(), 250);
+
+        // Character image is pasted at bottom center of icon layer
+        // x_center = (122 - 20) / 2 = 51, y_bottom = 250 - 30 = 220
+        assert_eq!(
+            frame.icons.get_pixel(51, 220).0[0],
+            80,
+            "character image top-left should be pasted at (51,220)"
+        );
+
+        // Status icon is pasted at approximately (3*sx, 60*sy) = (3,60) for 122x250
+        // Since sx=1.0 and sy=1.0, it should be at (3, 60)
+        assert_eq!(
+            frame.icons.get_pixel(3, 60).0[0],
+            60,
+            "status icon should be pasted near (3,60)"
+        );
+    }
+
+    // -- Border / divider line verification --
+
+    #[test]
+    fn border_and_dividers_are_drawn() {
+        let display = DisplayData::default();
+        let status = OrchestratorStatus::default();
+        let config = BjornConfig::default();
+        let tmp = std::path::PathBuf::from("/tmp/nonexistent");
+
+        let frame = render_frame(&display, &status, &config, &tmp, None, None, 122, 250);
+        let text = &frame.text_mask;
+
+        // Border rectangle at (1,1) to (120,248)
+        // Top-left corner of border
+        assert_eq!(
+            text.get_pixel(1, 1).0[0],
+            0,
+            "top-left border pixel should be black"
+        );
+        // Top-right corner of border
+        assert_eq!(
+            text.get_pixel(120, 1).0[0],
+            0,
+            "top-right border pixel should be black"
+        );
+        // Bottom-left corner of border
+        assert_eq!(
+            text.get_pixel(1, 248).0[0],
+            0,
+            "bottom-left border pixel should be black"
+        );
+
+        // Horizontal divider at y=20 (for 122x250 with sy=1.0)
+        assert_eq!(
+            text.get_pixel(60, 20).0[0],
+            0,
+            "divider at y=20 should be black"
+        );
+
+        // Horizontal divider at y=59
+        assert_eq!(
+            text.get_pixel(60, 59).0[0],
+            0,
+            "divider at y=59 should be black"
+        );
+
+        // Horizontal divider at y=87
+        assert_eq!(
+            text.get_pixel(60, 87).0[0],
+            0,
+            "divider at y=87 should be black"
+        );
+
+        // Pixel well inside a non-drawn area should be white (e.g., center of a stat box area)
+        // Picking (60, 30) which is in the stats area, between divider y=20 and y=59
+        // This pixel could have text on it, so let's pick a corner that's likely empty
+        assert_eq!(
+            text.get_pixel(70, 50).0[0],
+            255,
+            "interior pixel away from text/lines should be white"
+        );
+    }
+
+    // -- Helper function s() --
+
+    #[test]
+    fn scale_helper() {
+        assert_eq!(s(10, 1.0), 10);
+        assert_eq!(s(10, 2.0), 20);
+        assert_eq!(s(10, 0.5), 5);
+        assert_eq!(s(0, 3.0), 0);
+    }
+
+    // -- draw_hline / draw_rect_outline --
+
+    #[test]
+    fn draw_hline_sets_pixels() {
+        let mut img = GrayImage::from_pixel(20, 10, WHITE);
+        draw_hline(&mut img, 2, 8, 5);
+        // Pixels on the line should be black
+        for x in 2..=8 {
+            assert_eq!(
+                img.get_pixel(x, 5).0[0],
+                0,
+                "pixel at ({x},5) should be black"
+            );
+        }
+        // Pixel before the line should be white
+        assert_eq!(img.get_pixel(0, 5).0[0], 255);
+    }
+
+    #[test]
+    fn draw_rect_outline_draws_all_four_sides() {
+        let mut img = GrayImage::from_pixel(30, 30, WHITE);
+        draw_rect_outline(&mut img, 5, 5, 10, 10);
+        // Top side
+        assert_eq!(img.get_pixel(10, 5).0[0], 0, "top side pixel");
+        // Bottom side
+        assert_eq!(img.get_pixel(10, 15).0[0], 0, "bottom side pixel");
+        // Left side
+        assert_eq!(img.get_pixel(5, 10).0[0], 0, "left side pixel");
+        // Right side
+        assert_eq!(img.get_pixel(15, 10).0[0], 0, "right side pixel");
+        // Center should be white
+        assert_eq!(
+            img.get_pixel(10, 10).0[0],
+            255,
+            "center pixel should be white"
+        );
+    }
 }
