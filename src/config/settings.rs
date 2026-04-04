@@ -437,4 +437,53 @@ mod tests {
         let config = config.with_mac_blacklisted("aa:bb:cc:dd:ee:ff".to_string());
         assert_eq!(config.mac_scan_blacklist.len(), 1);
     }
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+
+        let original = BjornConfig::default().with_mac_blacklisted("11:22:33:44:55:66".to_string());
+        original.save(&path).unwrap();
+
+        let loaded = BjornConfig::load(&path).unwrap();
+        assert_eq!(loaded.mac_scan_blacklist, original.mac_scan_blacklist);
+        assert_eq!(loaded.startup_delay, original.startup_delay);
+        assert_eq!(loaded.portlist.len(), original.portlist.len());
+        assert_eq!(loaded.epd_type, original.epd_type);
+    }
+
+    #[test]
+    fn load_missing_file_returns_error() {
+        let result = BjornConfig::load(std::path::Path::new("/nonexistent/config.json"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_or_default_returns_defaults_for_missing_file() {
+        let config = BjornConfig::load_or_default(std::path::Path::new("/nonexistent/config.json"));
+        assert_eq!(config.startup_delay, 10);
+        assert_eq!(config.portlist.len(), 44);
+    }
+
+    #[test]
+    fn load_partial_json_uses_defaults_for_missing_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("partial.json");
+        std::fs::write(&path, r#"{"manual_mode": true}"#).unwrap();
+
+        let config = BjornConfig::load(&path).unwrap();
+        assert!(config.manual_mode);
+        assert_eq!(config.scan_interval, 180); // default
+        assert!(config.websrv); // default
+    }
+
+    #[test]
+    fn default_portlist_has_no_duplicates() {
+        let ports = default_portlist();
+        let mut unique = ports.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(ports.len(), unique.len());
+    }
 }

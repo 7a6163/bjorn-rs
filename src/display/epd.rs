@@ -880,3 +880,29 @@ mod hw {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_dimensions_2in13_variants() {
+        // All 2.13" variants share the same dimensions
+        for model in &["epd2in13", "epd2in13_V2", "epd2in13_V3", "epd2in13_V4"] {
+            let (w, h) = display_dimensions(model);
+            assert_eq!((w, h), (122, 250), "wrong dimensions for {model}");
+        }
+    }
+
+    #[test]
+    fn display_dimensions_2in7() {
+        let (w, h) = display_dimensions("epd2in7");
+        assert_eq!((w, h), (176, 264));
+    }
+
+    #[test]
+    fn display_dimensions_unknown_defaults_to_2in13() {
+        let (w, h) = display_dimensions("unknown_model");
+        assert_eq!((w, h), (122, 250));
+    }
+}

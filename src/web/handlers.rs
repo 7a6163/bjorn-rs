@@ -964,3 +964,111 @@ pub async fn sentinel_alerts(State(_state): State<Arc<AppState>>) -> impl IntoRe
         "note": "Sentinel alerts will be available when sentinel_enabled=true"
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_wifi_networks_extracts_ssids() {
+        let output = r#"
+wlan0     Scan completed :
+          Cell 01 - Address: AA:BB:CC:DD:EE:FF
+                    ESSID:"HomeNetwork"
+                    Protocol:IEEE 802.11
+          Cell 02 - Address: 11:22:33:44:55:66
+                    ESSID:"OfficeWiFi"
+                    Protocol:IEEE 802.11
+        "#;
+        let networks = parse_wifi_networks(output);
+        assert_eq!(networks, vec!["HomeNetwork", "OfficeWiFi"]);
+    }
+
+    #[test]
+    fn parse_wifi_networks_deduplicates() {
+        let output = "ESSID:\"MyNet\"\nESSID:\"MyNet\"\nESSID:\"Other\"";
+        let networks = parse_wifi_networks(output);
+        assert_eq!(networks, vec!["MyNet", "Other"]);
+    }
+
+    #[test]
+    fn parse_wifi_networks_skips_empty_ssid() {
+        let output = "ESSID:\"\"\nESSID:\"Valid\"";
+        let networks = parse_wifi_networks(output);
+        assert_eq!(networks, vec!["Valid"]);
+    }
+
+    #[test]
+    fn parse_wifi_networks_empty_output() {
+        assert!(parse_wifi_networks("").is_empty());
+        assert!(parse_wifi_networks("no essid here").is_empty());
+    }
+
+    #[test]
+    fn html_escape_all_special_chars() {
+        assert_eq!(html_escape("&"), "&amp;");
+        assert_eq!(html_escape("<"), "&lt;");
+        assert_eq!(html_escape(">"), "&gt;");
+        assert_eq!(html_escape("\""), "&quot;");
+        assert_eq!(html_escape("'"), "&#x27;");
+        assert_eq!(
+            html_escape("<script>alert('xss')</script>"),
+            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"
+        );
+    }
+
+    #[test]
+    fn html_escape_preserves_safe_text() {
+        assert_eq!(html_escape("hello world"), "hello world");
+        assert_eq!(html_escape(""), "");
+    }
+
+    #[test]
+    fn csv_to_html_table_basic() {
+        let csv = "Name,Port\nSSH,22\nFTP,21";
+        let html = csv_to_html_table(csv);
+        assert!(html.contains("<th>Name</th>"));
+        assert!(html.contains("<th>Port</th>"));
+        assert!(html.contains(r#"<td class="green">SSH</td>"#));
+        assert!(html.contains(r#"<td class="green">22</td>"#));
+    }
+
+    #[test]
+    fn csv_to_html_table_empty_cells_are_red() {
+        let csv = "A,B\nval,";
+        let html = csv_to_html_table(csv);
+        assert!(html.contains(r#"<td class="green">val</td>"#));
+        assert!(html.contains(r#"<td class="red"></td>"#));
+    }
+
+    #[test]
+    fn csv_to_html_table_escapes_html() {
+        let csv = "Header\n<script>";
+        let html = csv_to_html_table(csv);
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn csv_to_html_table_empty_csv() {
+        let html = csv_to_html_table("");
+        assert!(html.contains("<thead>"));
+        assert!(html.contains("</table>"));
+    }
+
+    #[test]
+    fn ok_response_format() {
+        let (status, json) = ok("test message");
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json.status, "success");
+        assert_eq!(json.message, "test message");
+    }
+
+    #[test]
+    fn err_response_format() {
+        let (status, json) = err_response(StatusCode::NOT_FOUND, "not found");
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(json.status, "error");
+        assert_eq!(json.message, "not found");
+    }
+}

@@ -470,6 +470,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn host_by_ip_found() {
+        let (kb, _dir) = test_kb().await;
+        kb.upsert_host(
+            "aa:bb:cc:dd:ee:ff",
+            "192.168.1.50",
+            Some("target"),
+            true,
+            "22;80",
+        )
+        .await
+        .unwrap();
+
+        let host = kb.host_by_ip("192.168.1.50").await.unwrap();
+        assert!(host.is_some());
+        let h = host.unwrap();
+        assert_eq!(h.mac_address, "aa:bb:cc:dd:ee:ff");
+        assert_eq!(h.hostname, Some("target".to_string()));
+    }
+
+    #[tokio::test]
+    async fn host_by_ip_not_found() {
+        let (kb, _dir) = test_kb().await;
+        let host = kb.host_by_ip("10.0.0.99").await.unwrap();
+        assert!(host.is_none());
+    }
+
+    #[tokio::test]
     async fn stats_counts() {
         let (kb, _dir) = test_kb().await;
 

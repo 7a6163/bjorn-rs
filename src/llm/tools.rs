@@ -247,3 +247,40 @@ pub async fn execute_tool(name: &str, inputs: &Value, state: &Arc<AppState>) -> 
         _ => json!({"error": format!("unknown tool: {name}")}).to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_definitions_has_all_seven_tools() {
+        let tools = tool_definitions();
+        assert_eq!(tools.len(), 7);
+
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        assert!(names.contains(&"get_hosts"));
+        assert!(names.contains(&"get_vulnerabilities"));
+        assert!(names.contains(&"get_credentials"));
+        assert!(names.contains(&"get_action_history"));
+        assert!(names.contains(&"get_status"));
+        assert!(names.contains(&"run_action"));
+        assert!(names.contains(&"query_db"));
+    }
+
+    #[test]
+    fn tool_definitions_have_required_fields() {
+        for tool in tool_definitions() {
+            assert!(tool["name"].is_string(), "tool missing name");
+            assert!(tool["description"].is_string(), "tool missing description");
+            assert!(
+                tool["input_schema"].is_object(),
+                "tool missing input_schema"
+            );
+            assert_eq!(
+                tool["input_schema"]["type"].as_str().unwrap(),
+                "object",
+                "input_schema type must be object"
+            );
+        }
+    }
+}

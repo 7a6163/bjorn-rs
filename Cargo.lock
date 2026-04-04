@@ -505,7 +505,7 @@ dependencies = [
 
 [[package]]
 name = "bjorn"
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.5"
 dependencies = [
  "ab_glyph",
  "anyhow",
