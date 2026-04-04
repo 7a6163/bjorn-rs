@@ -3,6 +3,7 @@
 ![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=fff)
 ![Status](https://img.shields.io/badge/Status-Alpha-blue.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![codecov](https://codecov.io/gh/7a6163/bjorn-rs/graph/badge.svg)](https://codecov.io/gh/7a6163/bjorn-rs)
 
 Rust rewrite of Bjorn — an autonomous network scanning, vulnerability assessment, and offensive security tool designed for Raspberry Pi + 2.13" e-Paper HAT.
 
