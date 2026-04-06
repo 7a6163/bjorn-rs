@@ -905,4 +905,55 @@ mod tests {
         let (w, h) = display_dimensions("unknown_model");
         assert_eq!((w, h), (122, 250));
     }
+
+    #[test]
+    fn display_dimensions_empty_string_defaults_to_2in13() {
+        let (w, h) = display_dimensions("");
+        assert_eq!((w, h), (122, 250));
+    }
+
+    #[test]
+    fn gpio_pin_constants_are_valid_bcm_pins() {
+        // BCM pin numbers should be in the valid range 0..=27
+        assert!(RST_PIN <= 27, "RST_PIN out of BCM range");
+        assert!(DC_PIN <= 27, "DC_PIN out of BCM range");
+        assert!(BUSY_PIN <= 27, "BUSY_PIN out of BCM range");
+        assert!(PWR_PIN <= 27, "PWR_PIN out of BCM range");
+    }
+
+    #[test]
+    fn gpio_pins_are_all_unique() {
+        let pins = [RST_PIN, DC_PIN, BUSY_PIN, PWR_PIN];
+        for i in 0..pins.len() {
+            for j in (i + 1)..pins.len() {
+                assert_ne!(pins[i], pins[j], "GPIO pins must be unique");
+            }
+        }
+    }
+
+    #[test]
+    fn create_display_returns_none_on_non_linux() {
+        // On macOS (non-Linux), create_display should always return None
+        // since there's no SPI hardware
+        assert!(create_display("epd2in13_V4").is_none());
+        assert!(create_display("epd2in13").is_none());
+        assert!(create_display("epd2in7").is_none());
+        assert!(create_display("unknown").is_none());
+    }
+
+    #[test]
+    fn display_dimensions_returns_positive_values() {
+        for model in &[
+            "epd2in13",
+            "epd2in13_V2",
+            "epd2in13_V3",
+            "epd2in13_V4",
+            "epd2in7",
+        ] {
+            let (w, h) = display_dimensions(model);
+            assert!(w > 0, "width must be positive for {model}");
+            assert!(h > 0, "height must be positive for {model}");
+            assert!(h > w, "height should be greater than width for {model}");
+        }
+    }
 }

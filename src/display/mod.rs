@@ -469,4 +469,149 @@ mod tests {
         let d = rand_duration(7, 7);
         assert_eq!(d, Duration::from_secs(7));
     }
+
+    // ── additional dither tests ───────────────────────────────────────
+
+    #[test]
+    fn dither_single_pixel_white() {
+        let img = GrayImage::from_pixel(1, 1, Luma([255u8]));
+        let out = floyd_steinberg_dither(&img);
+        assert_eq!(out.get_pixel(0, 0).0[0], 255);
+    }
+
+    #[test]
+    fn dither_single_pixel_black() {
+        let img = GrayImage::from_pixel(1, 1, Luma([0u8]));
+        let out = floyd_steinberg_dither(&img);
+        assert_eq!(out.get_pixel(0, 0).0[0], 0);
+    }
+
+    #[test]
+    fn dither_preserves_dimensions() {
+        let img = GrayImage::from_pixel(37, 53, Luma([100u8]));
+        let out = floyd_steinberg_dither(&img);
+        assert_eq!(out.width(), 37);
+        assert_eq!(out.height(), 53);
+    }
+
+    #[test]
+    fn dither_near_white_mostly_white() {
+        // 250 is very close to white — should produce mostly white pixels
+        let img = GrayImage::from_pixel(32, 32, Luma([250u8]));
+        let out = floyd_steinberg_dither(&img);
+        let white_count = out.pixels().filter(|p| p.0[0] == 255).count();
+        let total = out.pixels().count();
+        let ratio = white_count as f64 / total as f64;
+        assert!(
+            ratio > 0.9,
+            "near-white input should produce >90% white pixels, got {:.1}%",
+            ratio * 100.0
+        );
+    }
+
+    #[test]
+    fn dither_near_black_mostly_black() {
+        let img = GrayImage::from_pixel(32, 32, Luma([5u8]));
+        let out = floyd_steinberg_dither(&img);
+        let black_count = out.pixels().filter(|p| p.0[0] == 0).count();
+        let total = out.pixels().count();
+        let ratio = black_count as f64 / total as f64;
+        assert!(
+            ratio > 0.9,
+            "near-black input should produce >90% black pixels, got {:.1}%",
+            ratio * 100.0
+        );
+    }
+
+    // ── additional gray_to_epd_buffer tests ───────────────────────────
+
+    #[test]
+    fn epd_buffer_single_pixel_white() {
+        let img = GrayImage::from_pixel(1, 1, Luma([255u8]));
+        let buf = gray_to_epd_buffer(&img);
+        // 1 pixel wide → 1 byte, white pixel → all bits set
+        assert_eq!(buf.len(), 1);
+        assert_eq!(buf[0], 0xFF);
+    }
+
+    #[test]
+    fn epd_buffer_single_pixel_black() {
+        let img = GrayImage::from_pixel(1, 1, Luma([0u8]));
+        let buf = gray_to_epd_buffer(&img);
+        assert_eq!(buf.len(), 1);
+        // Only bit 7 is cleared, rest are padding (set to 1)
+        assert_eq!(buf[0], 0x7F);
+    }
+
+    #[test]
+    fn epd_buffer_threshold_at_128() {
+        // Pixel value 127 → black (< 128), pixel value 128 → white (>= 128)
+        let mut img = GrayImage::from_pixel(2, 1, Luma([255u8]));
+        img.put_pixel(0, 0, Luma([127u8])); // black
+        img.put_pixel(1, 0, Luma([128u8])); // white
+
+        let buf = gray_to_epd_buffer(&img);
+        assert_eq!(buf.len(), 1);
+        // bit 7 = 0 (black), bit 6 = 1 (white), bits 5-0 = 1 (padding)
+        assert_eq!(buf[0], 0b0111_1111);
+    }
+
+    #[test]
+    fn epd_buffer_multi_row_size() {
+        // 24px wide, 3 rows → 3 bytes per row → 9 bytes total
+        let img = GrayImage::from_pixel(24, 3, Luma([255u8]));
+        let buf = gray_to_epd_buffer(&img);
+        assert_eq!(buf.len(), 9);
+    }
+
+    // ── additional composite tests ────────────────────────────────────
+
+    #[test]
+    fn composite_no_text_preserves_dithered_icons() {
+        // All-white icon layer with no text should produce all-white buffer
+        let icons = GrayImage::from_pixel(8, 8, Luma([255u8]));
+        let text_mask = GrayImage::from_pixel(8, 8, Luma([255u8])); // no text
+
+        let frame = renderer::RenderedFrame { icons, text_mask };
+        let buf = composite_to_epd_buffer(&frame, false);
+
+        assert!(
+            buf.iter().all(|&b| b == 0xFF),
+            "all-white icons with no text should produce all-white buffer"
+        );
+    }
+
+    #[test]
+    fn composite_all_text_produces_all_black() {
+        // Icon layer doesn't matter — all text (0) should override everything
+        let icons = GrayImage::from_pixel(8, 8, Luma([255u8]));
+        let text_mask = GrayImage::from_pixel(8, 8, Luma([0u8])); // all text
+
+        let frame = renderer::RenderedFrame { icons, text_mask };
+        let buf = composite_to_epd_buffer(&frame, false);
+
+        assert!(
+            buf.iter().all(|&b| b == 0x00),
+            "all-text mask should produce all-black buffer"
+        );
+    }
+
+    #[test]
+    fn composite_rotation_is_involution() {
+        // Rotating twice should give back the original
+        let icons = GrayImage::from_fn(8, 8, |x, y| Luma([((x + y) % 2 * 255) as u8]));
+        let text_mask = GrayImage::from_pixel(8, 8, Luma([255u8]));
+
+        let frame = renderer::RenderedFrame {
+            icons: icons.clone(),
+            text_mask: text_mask.clone(),
+        };
+        let buf_no_rotate = composite_to_epd_buffer(&frame, false);
+
+        // rotate180(rotate180(x)) == x, so both false should match
+        let frame2 = renderer::RenderedFrame { icons, text_mask };
+        let buf_no_rotate2 = composite_to_epd_buffer(&frame2, false);
+
+        assert_eq!(buf_no_rotate, buf_no_rotate2);
+    }
 }

@@ -177,3 +177,273 @@ async fn load_wordlist(path: &std::path::Path) -> std::io::Result<Vec<String>> {
         .map(String::from)
         .collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::actions::{Action, ActionOutcome, Target};
+    use crate::config::{BjornConfig, PathConfig};
+    use crate::state::{AppState, KnowledgeBase};
+
+    // -----------------------------------------------------------------------
+    // Mock connector
+    // -----------------------------------------------------------------------
+
+    struct MockConnector {
+        valid_creds: Vec<(String, String)>,
+    }
+
+    impl MockConnector {
+        fn always_fail() -> Self {
+            Self {
+                valid_creds: vec![],
+            }
+        }
+
+        fn accepting(creds: Vec<(&str, &str)>) -> Self {
+            Self {
+                valid_creds: creds
+                    .into_iter()
+                    .map(|(u, p)| (u.to_string(), p.to_string()))
+                    .collect(),
+            }
+        }
+    }
+
+    impl Connector for MockConnector {
+        fn try_connect(
+            &self,
+            _ip: &str,
+            _port: u16,
+            user: &str,
+            password: &str,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
+            let matches = self
+                .valid_creds
+                .iter()
+                .any(|(u, p)| u == user && p == password);
+            Box::pin(std::future::ready(matches))
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Test helpers
+    // -----------------------------------------------------------------------
+
+    async fn test_state_with_wordlists(
+        users: &[&str],
+        passwords: &[&str],
+    ) -> (Arc<AppState>, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("test.db");
+        let kb = KnowledgeBase::open(&db_path).await.unwrap();
+        let paths = PathConfig::new(dir.path());
+        paths.ensure_dirs().unwrap();
+
+        // Write wordlist files
+        let users_content = users.join("\n");
+        tokio::fs::write(&paths.users_file, &users_content)
+            .await
+            .unwrap();
+
+        let passwords_content = passwords.join("\n");
+        tokio::fs::write(&paths.passwords_file, &passwords_content)
+            .await
+            .unwrap();
+
+        let config = BjornConfig::default();
+        let state = AppState::new(config, paths, kb);
+        (state, dir)
+    }
+
+    fn make_target(host_id: i64) -> Target {
+        Target {
+            host_id,
+            ip: "10.0.0.1".to_string(),
+            mac_address: "aa:bb:cc:dd:ee:01".to_string(),
+            hostname: None,
+            ports: vec![22],
+        }
+    }
+
+    fn make_action<C: Connector>(connector: C) -> BruteForceAction<C> {
+        BruteForceAction::new(connector, "MockBrute", "mock", 9999, None, 4)
+    }
+
+    // -----------------------------------------------------------------------
+    // 1. Always-failing connector → ActionOutcome::Failed
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn all_creds_fail_returns_failed() {
+        let (state, _dir) =
+            test_state_with_wordlists(&["admin", "root"], &["pass1", "pass2"]).await;
+        let host_id = state
+            .kb
+            .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+            .await
+            .unwrap();
+
+        let action = make_action(MockConnector::always_fail());
+        let target = make_target(host_id);
+        let outcome = action.execute(&target, &state).await;
+
+        assert_eq!(
+            outcome,
+            ActionOutcome::Failed("no credentials found".to_string())
+        );
+
+        // No credentials should be stored
+        let creds = state.kb.credentials(Some("mock")).await.unwrap();
+        assert!(creds.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // 2. Succeeds on specific creds → ActionOutcome::Success + credential in KB
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn matching_creds_returns_success_and_stores_credential() {
+        let (state, _dir) = test_state_with_wordlists(&["admin", "root"], &["wrong", "toor"]).await;
+        let host_id = state
+            .kb
+            .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+            .await
+            .unwrap();
+
+        let action = make_action(MockConnector::accepting(vec![("root", "toor")]));
+        let target = make_target(host_id);
+        let outcome = action.execute(&target, &state).await;
+
+        assert_eq!(outcome, ActionOutcome::Success);
+
+        let creds = state.kb.credentials(Some("mock")).await.unwrap();
+        assert_eq!(creds.len(), 1);
+        assert_eq!(creds[0].username, "root");
+        assert_eq!(creds[0].password, "toor");
+        assert_eq!(creds[0].port, 9999);
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. Multiple valid credentials → all stored
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn multiple_valid_credentials_all_stored() {
+        let (state, _dir) =
+            test_state_with_wordlists(&["admin", "root"], &["admin123", "toor"]).await;
+        let host_id = state
+            .kb
+            .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+            .await
+            .unwrap();
+
+        let action = make_action(MockConnector::accepting(vec![
+            ("admin", "admin123"),
+            ("root", "toor"),
+        ]));
+        let target = make_target(host_id);
+        let outcome = action.execute(&target, &state).await;
+
+        assert_eq!(outcome, ActionOutcome::Success);
+
+        let creds = state.kb.credentials(Some("mock")).await.unwrap();
+        assert_eq!(creds.len(), 2);
+
+        let pairs: Vec<(String, String)> = creds
+            .iter()
+            .map(|c| (c.username.clone(), c.password.clone()))
+            .collect();
+        assert!(pairs.contains(&("admin".to_string(), "admin123".to_string())));
+        assert!(pairs.contains(&("root".to_string(), "toor".to_string())));
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. Empty wordlists → fails gracefully
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn empty_wordlists_returns_failed() {
+        let (state, _dir) = test_state_with_wordlists(&[], &[]).await;
+        let host_id = state
+            .kb
+            .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+            .await
+            .unwrap();
+
+        let action = make_action(MockConnector::accepting(vec![("root", "toor")]));
+        let target = make_target(host_id);
+        let outcome = action.execute(&target, &state).await;
+
+        // With 0 users * 0 passwords = 0 combinations, nothing is tried
+        assert_eq!(
+            outcome,
+            ActionOutcome::Failed("no credentials found".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_wordlist_file_returns_failed() {
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("test.db");
+        let kb = KnowledgeBase::open(&db_path).await.unwrap();
+        let paths = PathConfig::new(dir.path());
+        // Do NOT create wordlist files or dirs
+        let config = BjornConfig::default();
+        let state = AppState::new(config, paths, kb);
+
+        let host_id = state
+            .kb
+            .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+            .await
+            .unwrap();
+
+        let action = make_action(MockConnector::always_fail());
+        let target = make_target(host_id);
+        let outcome = action.execute(&target, &state).await;
+
+        assert!(
+            matches!(outcome, ActionOutcome::Failed(msg) if !msg.is_empty()),
+            "should fail with an error message when wordlist file is missing"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // 5. Trait method accessors: name(), port(), parent()
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn name_returns_action_name() {
+        let action = make_action(MockConnector::always_fail());
+        assert_eq!(action.name(), "MockBrute");
+    }
+
+    #[test]
+    fn port_returns_target_port() {
+        let action = make_action(MockConnector::always_fail());
+        assert_eq!(action.port(), Some(9999));
+    }
+
+    #[test]
+    fn parent_returns_none_when_not_set() {
+        let action = make_action(MockConnector::always_fail());
+        assert_eq!(action.parent(), None);
+    }
+
+    #[test]
+    fn parent_returns_some_when_set() {
+        let action = BruteForceAction::new(
+            MockConnector::always_fail(),
+            "ChildAction",
+            "mock",
+            9999,
+            Some("ParentAction"),
+            4,
+        );
+        assert_eq!(action.parent(), Some("ParentAction"));
+    }
+}

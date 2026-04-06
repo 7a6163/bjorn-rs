@@ -171,4 +171,137 @@ mod tests {
         assert_eq!(vulns[1].severity.as_deref(), Some("CRITICAL"));
         assert_eq!(vulns[2].port, Some(80));
     }
+
+    #[test]
+    fn parse_empty_output() {
+        let vulns = parse_vulnerabilities("");
+        assert!(vulns.is_empty());
+    }
+
+    #[test]
+    fn parse_no_cves_found() {
+        let output = r#"
+Starting Nmap 7.94 ( https://nmap.org ) at 2024-01-01 00:00 UTC
+22/tcp open  ssh     OpenSSH 8.9p1
+| vulners:
+|   cpe:/a:openbsd:openssh:8.9p1:
+|       No known vulnerabilities
+80/tcp open  http    nginx 1.24.0
+Nmap done: 1 IP address (1 host up) scanned in 12.34 seconds
+"#;
+        let vulns = parse_vulnerabilities(output);
+        assert!(vulns.is_empty(), "expected no vulns but found {vulns:?}");
+    }
+
+    #[test]
+    fn parse_malformed_port_line() {
+        // Port line with non-numeric prefix should not crash
+        let output = "abc/tcp open ssh\n  CVE-2020-1234 7.5\n";
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 1);
+        // Port should be None because "abc" does not parse as u16
+        assert_eq!(vulns[0].port, None);
+        assert!(vulns[0].description.contains("CVE-2020-1234"));
+    }
+
+    #[test]
+    fn parse_malformed_no_slash_tcp() {
+        // Lines without /tcp should not set current_port
+        let output = "some random line\n  CVE-2021-9999 5.0\n";
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 1);
+        assert_eq!(vulns[0].port, None);
+    }
+
+    #[test]
+    fn parse_multiple_cves_same_port() {
+        let output = r#"
+443/tcp open  https   Apache 2.4.49
+|     CVE-2021-41773  7.5  https://vulners.com/cve/CVE-2021-41773
+|     CVE-2021-42013  9.8  https://vulners.com/cve/CVE-2021-42013
+|     CVE-2021-40438  9.0  *EXPLOIT*
+|     CVE-2021-44790  9.8  https://vulners.com/cve/CVE-2021-44790
+"#;
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 4);
+        for vuln in &vulns {
+            assert_eq!(vuln.port, Some(443));
+        }
+        // Only the *EXPLOIT* one should have CRITICAL severity
+        assert_eq!(vulns[0].severity, None);
+        assert_eq!(vulns[1].severity, None);
+        assert_eq!(vulns[2].severity.as_deref(), Some("CRITICAL"));
+        assert_eq!(vulns[3].severity, None);
+    }
+
+    #[test]
+    fn parse_multiple_ports_interleaved() {
+        let output = r#"
+22/tcp open  ssh
+|     CVE-2020-1111  5.0
+8080/tcp open  http-proxy
+|     CVE-2020-2222  8.0
+3306/tcp open  mysql
+|     CVE-2020-3333  6.5
+|     CVE-2020-4444  7.0  *EXPLOIT*
+"#;
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 4);
+        assert_eq!(vulns[0].port, Some(22));
+        assert_eq!(vulns[1].port, Some(8080));
+        assert_eq!(vulns[2].port, Some(3306));
+        assert_eq!(vulns[3].port, Some(3306));
+    }
+
+    #[test]
+    fn parse_vulnerable_keyword() {
+        let output = "80/tcp open http\n  VULNERABLE: httpd allows directory listing\n";
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 1);
+        assert!(vulns[0].description.contains("VULNERABLE"));
+        assert_eq!(vulns[0].port, Some(80));
+        // VULNERABLE alone does not trigger CRITICAL — only *EXPLOIT* does
+        assert_eq!(vulns[0].severity, None);
+    }
+
+    #[test]
+    fn parse_exploit_marker_sets_critical() {
+        let output = "22/tcp open ssh\n  *EXPLOIT* some-exploit-db-ref\n";
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 1);
+        assert_eq!(vulns[0].severity.as_deref(), Some("CRITICAL"));
+    }
+
+    #[test]
+    fn parse_cve_without_port_context() {
+        // CVE appears before any port line
+        let output = "  CVE-2023-0001  10.0  *EXPLOIT*\n22/tcp open ssh\n  CVE-2023-0002  5.0\n";
+        let vulns = parse_vulnerabilities(output);
+        assert_eq!(vulns.len(), 2);
+        // First CVE has no port context
+        assert_eq!(vulns[0].port, None);
+        assert_eq!(vulns[0].severity.as_deref(), Some("CRITICAL"));
+        // Second CVE is under port 22
+        assert_eq!(vulns[1].port, Some(22));
+        assert_eq!(vulns[1].severity, None);
+    }
+
+    #[test]
+    fn parse_whitespace_only_output() {
+        let vulns = parse_vulnerabilities("   \n\n  \t  \n");
+        assert!(vulns.is_empty());
+    }
+
+    #[test]
+    fn parsed_vuln_clone() {
+        let vuln = ParsedVuln {
+            description: "CVE-2024-0001".to_string(),
+            port: Some(443),
+            severity: Some("CRITICAL".to_string()),
+        };
+        let cloned = vuln.clone();
+        assert_eq!(cloned.description, vuln.description);
+        assert_eq!(cloned.port, vuln.port);
+        assert_eq!(cloned.severity, vuln.severity);
+    }
 }
