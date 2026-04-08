@@ -39,3 +39,24 @@ async fn ftp_try_connect(ip: &str, port: u16, user: &str, password: &str) -> boo
 pub fn create_action() -> BruteForceAction<FtpConnector> {
     BruteForceAction::new(FtpConnector, "FTPBruteforce", "ftp", 21, None, 40)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "FTPBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(21));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

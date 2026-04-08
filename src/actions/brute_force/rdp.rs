@@ -49,3 +49,24 @@ async fn rdp_try_connect(ip: &str, port: u16, user: &str, password: &str) -> boo
 pub fn create_action() -> BruteForceAction<RdpConnector> {
     BruteForceAction::new(RdpConnector, "RDPBruteforce", "rdp", 3389, None, 10)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "RDPBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(3389));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

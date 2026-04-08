@@ -93,3 +93,24 @@ async fn snmp_try_connect(ip: &str, port: u16, community: &str) -> bool {
 pub fn create_action() -> BruteForceAction<SnmpConnector> {
     BruteForceAction::new(SnmpConnector, "SNMPBruteforce", "snmp", 161, None, 20)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "SNMPBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(161));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

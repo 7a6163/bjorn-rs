@@ -95,6 +95,42 @@ pub fn create_action_8080() -> BruteForceAction<HttpBasicConnector> {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "HTTPBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(80));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+
+    #[test]
+    fn test_create_action_8080_name() {
+        assert_eq!(create_action_8080().name(), "HTTPBruteforce8080");
+    }
+
+    #[test]
+    fn test_create_action_8080_port() {
+        assert_eq!(create_action_8080().port(), Some(8080));
+    }
+
+    #[test]
+    fn test_create_action_8080_parent() {
+        assert_eq!(create_action_8080().parent(), None);
+    }
+}
+
 fn base64_encode(input: &str) -> String {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let bytes = input.as_bytes();

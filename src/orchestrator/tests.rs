@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use tempfile::TempDir;
 
@@ -365,6 +366,195 @@ async fn should_run_action_independent_per_action_name() {
 
     // FTPBruteforce has no result — should run
     assert!(orch.should_run_action(host_id, "FTPBruteforce").await);
+}
+
+// ---------------------------------------------------------------------------
+// should_run_action — after success, with retry enabled and 0 delay
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn should_run_action_after_success_with_retry_enabled() {
+    let (state, _dir) = test_state().await;
+
+    let mut config = BjornConfig::default();
+    config.retry_success_actions = true;
+    config.success_retry_delay = 0;
+    state.config.store(Arc::new(config));
+
+    let host_id = state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "22")
+        .await
+        .unwrap();
+
+    state
+        .kb
+        .record_action(host_id, "SSHBruteforce", "success")
+        .await
+        .unwrap();
+
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    assert!(
+        orch.should_run_action(host_id, "SSHBruteforce").await,
+        "should retry successful action when retry_success_actions is true and delay is 0"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// should_run_action — after failure, retry disabled means no retry
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn should_run_action_after_failure_with_retry_disabled() {
+    let (state, _dir) = test_state().await;
+
+    let mut config = BjornConfig::default();
+    config.retry_failed_actions = false;
+    state.config.store(Arc::new(config));
+
+    let host_id = state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "22")
+        .await
+        .unwrap();
+
+    state
+        .kb
+        .record_action(host_id, "SSHBruteforce", "failed")
+        .await
+        .unwrap();
+
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    assert!(
+        !orch.should_run_action(host_id, "SSHBruteforce").await,
+        "should not retry failed action when retry_failed_actions is false"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// process_actions — returns false when no hosts
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_actions_returns_false_with_no_hosts() {
+    let (state, _dir) = test_state().await;
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    // No hosts in the database
+    let result = orch.process_actions().await;
+    assert!(
+        !result,
+        "process_actions should return false when there are no hosts"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// process_actions — returns false when hosts exist but no ports match
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_actions_returns_false_with_no_matching_ports() {
+    let (state, _dir) = test_state().await;
+
+    // Insert a host with port 9999 which no action targets
+    state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "9999")
+        .await
+        .unwrap();
+
+    let orch = Orchestrator::new(Arc::clone(&state));
+    let result = orch.process_actions().await;
+
+    // Actions all target specific ports (22, 21, 23, etc.), so 9999 won't match
+    // Note: The action will still execute since brute-force actions shell out
+    // to external commands which will fail, making process_actions return false
+    // if all actions fail.
+    assert!(
+        !result,
+        "process_actions should return false when no ports match any action"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// idle_wait — returns immediately on shutdown
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn idle_wait_returns_on_shutdown() {
+    let (state, _dir) = test_state().await;
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    // Cancel shutdown immediately
+    state.shutdown.cancel();
+
+    // idle_wait should return almost immediately instead of waiting 60 seconds
+    let start = std::time::Instant::now();
+    orch.idle_wait(Duration::from_secs(60)).await;
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "idle_wait should return immediately on shutdown, took {:?}",
+        elapsed
+    );
+}
+
+// ---------------------------------------------------------------------------
+// idle_wait — waits for the full duration when no shutdown
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn idle_wait_respects_duration() {
+    let (state, _dir) = test_state().await;
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    let start = std::time::Instant::now();
+    orch.idle_wait(Duration::from_millis(50)).await;
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed >= Duration::from_millis(40),
+        "idle_wait should wait close to the full duration, took {:?}",
+        elapsed
+    );
+}
+
+// ---------------------------------------------------------------------------
+// maybe_run_vuln_scans — skips when vuln scanning is disabled
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn maybe_run_vuln_scans_skips_when_disabled() {
+    let (state, _dir) = test_state().await;
+
+    // Default config has scan_vuln_running = false
+    assert!(!state.config().scan_vuln_running);
+
+    state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:01", "10.0.0.1", None, true, "22;80")
+        .await
+        .unwrap();
+
+    let orch = Orchestrator::new(Arc::clone(&state));
+
+    // Should return without doing anything
+    orch.maybe_run_vuln_scans().await;
+
+    // Verify no NmapVulnScanner action was recorded
+    let host_id = state.kb.host_by_ip("10.0.0.1").await.unwrap().unwrap().id;
+    let result = state
+        .kb
+        .latest_action_result(host_id, "NmapVulnScanner")
+        .await
+        .unwrap();
+    assert!(
+        result.is_none(),
+        "no vuln scan action should be recorded when disabled"
+    );
 }
 
 // ---------------------------------------------------------------------------

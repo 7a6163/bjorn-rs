@@ -150,3 +150,26 @@ async fn steal_postgres_data(
 
     Ok(total_tables)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataPostgres;
+        assert_eq!(action.name(), "StealDataPostgres");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataPostgres;
+        assert_eq!(action.port(), Some(5432));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataPostgres;
+        assert_eq!(action.parent(), Some("PostgresBruteforce"));
+    }
+}

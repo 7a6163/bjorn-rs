@@ -62,3 +62,24 @@ pub fn create_action() -> BruteForceAction<PostgresConnector> {
         10,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "PostgresBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(5432));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

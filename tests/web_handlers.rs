@@ -1095,3 +1095,224 @@ async fn download_file_serves_existing_file() {
     let body = body_string(resp.into_body()).await;
     assert_eq!(body, "captured data");
 }
+
+// ---------------------------------------------------------------------------
+// 25. POST /execute_manual_attack - valid host and action
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn execute_manual_attack_with_valid_host() {
+    let (state, _dir) = test_state().await;
+
+    // Insert a host so the handler can find it
+    state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:10", "10.0.0.10", Some("target"), true, "22")
+        .await
+        .unwrap();
+
+    let app = build_router(Arc::clone(&state));
+
+    // Use SSHBruteforce which is a known action name in the registry.
+    // It will fail (no ssh binary / target), but the handler should still
+    // return 200 with status "error" (ActionOutcome::Failed).
+    let req = Request::builder()
+        .method("POST")
+        .uri("/execute_manual_attack")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"ip": "10.0.0.10", "port": 22, "action": "SSHBruteforce"}"#,
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+
+    // The action will fail because ssh tools aren't available in test,
+    // but the handler itself should succeed (returns 200 either way).
+    assert!(
+        json["status"].is_string(),
+        "response should have a status field"
+    );
+    assert!(
+        json["message"].is_string(),
+        "response should have a message field"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 26. POST /execute_manual_attack - invalid action name
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn execute_manual_attack_with_invalid_action() {
+    let (state, _dir) = test_state().await;
+
+    state
+        .kb
+        .upsert_host("aa:bb:cc:dd:ee:10", "10.0.0.10", None, true, "22")
+        .await
+        .unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/execute_manual_attack")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"ip": "10.0.0.10", "port": 22, "action": "NonExistentAction"}"#,
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "error");
+    assert!(
+        json["message"].as_str().unwrap().contains("not found"),
+        "error message should mention action not found"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 27. POST /execute_manual_attack - unknown IP returns 404
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn execute_manual_attack_with_unknown_ip() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/execute_manual_attack")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"ip": "192.168.99.99", "port": 22, "action": "SSHBruteforce"}"#,
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "error");
+    assert!(
+        json["message"].as_str().unwrap().contains("no host found"),
+        "error message should mention no host found"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 28. POST /save_config - llm_api_key should be blocked
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn save_config_blocks_llm_api_key() {
+    let (state, _dir) = test_state().await;
+
+    // Ensure default has no API key
+    assert!(state.config().llm_api_key.is_empty());
+
+    let app = build_router(Arc::clone(&state));
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/save_config")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"llm_api_key": "sk-secret-key-12345"}"#))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["status"], "success");
+
+    // The llm_api_key should NOT have been updated (it's a blocked key)
+    assert!(
+        state.config().llm_api_key.is_empty(),
+        "llm_api_key should remain empty because it is a blocked field"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 29. GET /api/tools/vulnerabilities - returns data when vulns exist
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn api_tools_vulnerabilities_returns_empty_json() {
+    let (state, _dir) = test_state().await;
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/vulnerabilities")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(content_type.contains("application/json"));
+
+    let body = body_string(resp.into_body()).await;
+    let _json: serde_json::Value = serde_json::from_str(&body).unwrap();
+}
+
+#[tokio::test]
+async fn api_tools_vulnerabilities_returns_data() {
+    let (state, _dir) = test_state().await;
+
+    // Insert a host and a vulnerability
+    let host_id = state
+        .kb
+        .upsert_host(
+            "aa:bb:cc:dd:ee:20",
+            "10.0.0.20",
+            Some("vuln-target"),
+            true,
+            "22;80",
+        )
+        .await
+        .unwrap();
+
+    state
+        .kb
+        .store_vulnerability(host_id, 22, "CVE-2024-9999 OpenSSH RCE", Some("CRITICAL"))
+        .await
+        .unwrap();
+
+    let app = build_router(state);
+
+    let req = Request::builder()
+        .uri("/api/tools/vulnerabilities")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = body_string(resp.into_body()).await;
+    assert!(
+        body.contains("CVE-2024-9999"),
+        "response should contain the vulnerability CVE ID"
+    );
+    assert!(
+        body.contains("CRITICAL"),
+        "response should contain the severity"
+    );
+}

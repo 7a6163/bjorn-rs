@@ -102,3 +102,46 @@ async fn walk_snmp(
 
     Ok(total)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataSnmp;
+        assert_eq!(action.name(), "StealDataSNMP");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataSnmp;
+        assert_eq!(action.port(), Some(161));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataSnmp;
+        assert_eq!(action.parent(), Some("SNMPBruteforce"));
+    }
+
+    #[test]
+    fn walk_oids_has_expected_subtrees() {
+        assert!(!WALK_OIDS.is_empty());
+        let names: Vec<&str> = WALK_OIDS.iter().map(|(_, name)| *name).collect();
+        assert!(names.contains(&"system"));
+        assert!(names.contains(&"interfaces"));
+        assert!(names.contains(&"arp_table"));
+        assert!(names.contains(&"routes"));
+    }
+
+    #[test]
+    fn walk_oids_have_valid_oid_prefixes() {
+        for (oid, _) in WALK_OIDS {
+            assert!(
+                oid.starts_with("1.3.6.1"),
+                "OID {oid} should start with 1.3.6.1"
+            );
+        }
+    }
+}

@@ -110,3 +110,26 @@ async fn capture_mqtt(
 
     Ok(lines.len())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataMqtt;
+        assert_eq!(action.name(), "StealDataMQTT");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataMqtt;
+        assert_eq!(action.port(), Some(1883));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataMqtt;
+        assert_eq!(action.parent(), Some("MQTTBruteforce"));
+    }
+}

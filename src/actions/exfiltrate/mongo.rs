@@ -104,3 +104,26 @@ async fn steal_mongo_data(
         Err(String::from_utf8_lossy(&result.stderr).to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataMongo;
+        assert_eq!(action.name(), "StealDataMongo");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataMongo;
+        assert_eq!(action.port(), Some(27017));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataMongo;
+        assert_eq!(action.parent(), Some("MongoBruteforce"));
+    }
+}

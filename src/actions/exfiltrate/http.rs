@@ -183,3 +183,100 @@ fn base64_encode(input: &str) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name_http() {
+        let action = StealDataHttp;
+        assert_eq!(action.name(), "StealDataHTTP");
+    }
+
+    #[test]
+    fn action_port_http() {
+        let action = StealDataHttp;
+        assert_eq!(action.port(), Some(80));
+    }
+
+    #[test]
+    fn action_parent_http() {
+        let action = StealDataHttp;
+        assert_eq!(action.parent(), Some("HTTPBruteforce"));
+    }
+
+    #[test]
+    fn action_name_http8080() {
+        let action = StealDataHttp8080;
+        assert_eq!(action.name(), "StealDataHTTP8080");
+    }
+
+    #[test]
+    fn action_port_http8080() {
+        let action = StealDataHttp8080;
+        assert_eq!(action.port(), Some(8080));
+    }
+
+    #[test]
+    fn action_parent_http8080() {
+        let action = StealDataHttp8080;
+        assert_eq!(action.parent(), Some("HTTPBruteforce8080"));
+    }
+
+    #[test]
+    fn base64_encode_empty() {
+        assert_eq!(base64_encode(""), "");
+    }
+
+    #[test]
+    fn base64_encode_single_char() {
+        // 'A' = 0x41 -> base64 "QQ=="
+        assert_eq!(base64_encode("A"), "QQ==");
+    }
+
+    #[test]
+    fn base64_encode_two_chars() {
+        // 'AB' -> base64 "QUI="
+        assert_eq!(base64_encode("AB"), "QUI=");
+    }
+
+    #[test]
+    fn base64_encode_three_chars() {
+        // 'ABC' -> base64 "QUJD" (no padding)
+        assert_eq!(base64_encode("ABC"), "QUJD");
+    }
+
+    #[test]
+    fn base64_encode_credentials() {
+        // Standard Basic Auth encoding: "user:pass" -> "dXNlcjpwYXNz"
+        assert_eq!(base64_encode("user:pass"), "dXNlcjpwYXNz");
+    }
+
+    #[test]
+    fn base64_encode_admin_credentials() {
+        // "admin:admin" -> "YWRtaW46YWRtaW4="
+        assert_eq!(base64_encode("admin:admin"), "YWRtaW46YWRtaW4=");
+    }
+
+    #[test]
+    fn scrape_paths_not_empty() {
+        assert!(!SCRAPE_PATHS.is_empty());
+    }
+
+    #[test]
+    fn scrape_paths_include_root() {
+        let paths: Vec<&str> = SCRAPE_PATHS.iter().map(|(p, _)| *p).collect();
+        assert!(paths.contains(&"/"));
+    }
+
+    #[test]
+    fn scrape_paths_filenames_have_extensions() {
+        for (_, filename) in SCRAPE_PATHS {
+            assert!(
+                filename.contains('.'),
+                "filename {filename} should have an extension"
+            );
+        }
+    }
+}

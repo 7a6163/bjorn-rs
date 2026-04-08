@@ -99,3 +99,26 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
 
     ActionOutcome::Failed("no files found".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealFilesTelnet;
+        assert_eq!(action.name(), "StealFilesTelnet");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealFilesTelnet;
+        assert_eq!(action.port(), Some(23));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealFilesTelnet;
+        assert_eq!(action.parent(), Some("TelnetBruteforce"));
+    }
+}

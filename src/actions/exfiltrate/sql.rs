@@ -178,3 +178,92 @@ fn is_safe_sql_identifier(name: &str) -> bool {
         && !name.contains('\n')
         && name.len() < 256
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataSql;
+        assert_eq!(action.name(), "StealDataSQL");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataSql;
+        assert_eq!(action.port(), Some(3306));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataSql;
+        assert_eq!(action.parent(), Some("SQLBruteforce"));
+    }
+
+    #[test]
+    fn escape_sql_identifier_simple_name() {
+        assert_eq!(escape_sql_identifier("users"), "`users`");
+    }
+
+    #[test]
+    fn escape_sql_identifier_with_backtick() {
+        assert_eq!(escape_sql_identifier("my`table"), "`my``table`");
+    }
+
+    #[test]
+    fn escape_sql_identifier_empty() {
+        assert_eq!(escape_sql_identifier(""), "``");
+    }
+
+    #[test]
+    fn escape_sql_identifier_multiple_backticks() {
+        assert_eq!(escape_sql_identifier("a``b"), "`a````b`");
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_valid() {
+        assert!(is_safe_sql_identifier("users"));
+        assert!(is_safe_sql_identifier("my_table_123"));
+        assert!(is_safe_sql_identifier("CamelCase"));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_empty() {
+        assert!(!is_safe_sql_identifier(""));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_semicolon() {
+        assert!(!is_safe_sql_identifier("users; DROP TABLE"));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_single_quote() {
+        assert!(!is_safe_sql_identifier("users'--"));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_double_quote() {
+        assert!(!is_safe_sql_identifier("users\""));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_null_byte() {
+        assert!(!is_safe_sql_identifier("users\0"));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_newline() {
+        assert!(!is_safe_sql_identifier("users\n"));
+    }
+
+    #[test]
+    fn is_safe_sql_identifier_rejects_long_name() {
+        let long_name = "a".repeat(256);
+        assert!(!is_safe_sql_identifier(&long_name));
+        // 255 should be fine
+        let ok_name = "a".repeat(255);
+        assert!(is_safe_sql_identifier(&ok_name));
+    }
+}

@@ -75,3 +75,24 @@ impl client::Handler for SshHandler {
 pub fn create_action() -> BruteForceAction<SshConnector> {
     BruteForceAction::new(SshConnector, "SSHBruteforce", "ssh", 22, None, 40)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "SSHBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(22));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

@@ -56,3 +56,24 @@ async fn mongo_try_connect(ip: &str, port: u16, user: &str, password: &str) -> b
 pub fn create_action() -> BruteForceAction<MongoConnector> {
     BruteForceAction::new(MongoConnector, "MongoBruteforce", "mongo", 27017, None, 10)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "MongoBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(27017));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

@@ -85,3 +85,26 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
 
     ActionOutcome::Failed("no files stolen".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealFilesFtp;
+        assert_eq!(action.name(), "StealFilesFTP");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealFilesFtp;
+        assert_eq!(action.port(), Some(21));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealFilesFtp;
+        assert_eq!(action.parent(), Some("FTPBruteforce"));
+    }
+}

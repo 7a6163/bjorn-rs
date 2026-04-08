@@ -51,3 +51,24 @@ async fn smb_try_connect(ip: &str, _port: u16, user: &str, password: &str) -> bo
 pub fn create_action() -> BruteForceAction<SmbConnector> {
     BruteForceAction::new(SmbConnector, "SMBBruteforce", "smb", 445, None, 10)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "SMBBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(445));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

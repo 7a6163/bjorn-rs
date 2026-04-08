@@ -82,3 +82,26 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
 
     ActionOutcome::Failed("RDP file theft failed".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealFilesRdp;
+        assert_eq!(action.name(), "StealFilesRDP");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealFilesRdp;
+        assert_eq!(action.port(), Some(3389));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealFilesRdp;
+        assert_eq!(action.parent(), Some("RDPBruteforce"));
+    }
+}

@@ -143,3 +143,26 @@ async fn steal_redis_data(
     let _ = tokio::fs::write(&dump_path, &dump_content).await;
     Ok(keys.len())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealDataRedis;
+        assert_eq!(action.name(), "StealDataRedis");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealDataRedis;
+        assert_eq!(action.port(), Some(6379));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealDataRedis;
+        assert_eq!(action.parent(), Some("RedisBruteforce"));
+    }
+}

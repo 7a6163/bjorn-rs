@@ -111,3 +111,24 @@ async fn read_until_pattern(
 pub fn create_action() -> BruteForceAction<TelnetConnector> {
     BruteForceAction::new(TelnetConnector, "TelnetBruteforce", "telnet", 23, None, 40)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "TelnetBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(23));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

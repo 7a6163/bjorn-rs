@@ -168,3 +168,26 @@ async fn steal_via_ssh(
 
     Ok(count)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealFilesSsh;
+        assert_eq!(action.name(), "StealFilesSSH");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealFilesSsh;
+        assert_eq!(action.port(), Some(22));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealFilesSsh;
+        assert_eq!(action.parent(), Some("SSHBruteforce"));
+    }
+}

@@ -133,3 +133,24 @@ fn vnc_des_encrypt(challenge: &[u8; 16], password: &str) -> Vec<u8> {
 pub fn create_action() -> BruteForceAction<VncConnector> {
     BruteForceAction::new(VncConnector, "VNCBruteforce", "vnc", 5900, None, 10)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actions::Action;
+
+    #[test]
+    fn test_create_action_name() {
+        assert_eq!(create_action().name(), "VNCBruteforce");
+    }
+
+    #[test]
+    fn test_create_action_port() {
+        assert_eq!(create_action().port(), Some(5900));
+    }
+
+    #[test]
+    fn test_create_action_parent() {
+        assert_eq!(create_action().parent(), None);
+    }
+}

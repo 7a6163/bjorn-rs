@@ -178,3 +178,84 @@ fn is_safe_filename(name: &str) -> bool {
         && !name.contains('\r')
         && !name.contains('\0')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_name() {
+        let action = StealFilesSmb;
+        assert_eq!(action.name(), "StealFilesSMB");
+    }
+
+    #[test]
+    fn action_port() {
+        let action = StealFilesSmb;
+        assert_eq!(action.port(), Some(445));
+    }
+
+    #[test]
+    fn action_parent() {
+        let action = StealFilesSmb;
+        assert_eq!(action.parent(), Some("SMBBruteforce"));
+    }
+
+    #[test]
+    fn is_safe_filename_valid() {
+        assert!(is_safe_filename("document.txt"));
+        assert!(is_safe_filename("my-file_v2.pdf"));
+        assert!(is_safe_filename("photo.jpg"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_empty() {
+        assert!(!is_safe_filename(""));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_path_traversal() {
+        assert!(!is_safe_filename("../etc/passwd"));
+        assert!(!is_safe_filename("foo/../bar"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_semicolon() {
+        assert!(!is_safe_filename("file;rm -rf /"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_backtick() {
+        assert!(!is_safe_filename("file`cmd`"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_dollar() {
+        assert!(!is_safe_filename("$HOME/file"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_pipe() {
+        assert!(!is_safe_filename("file|cat"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_ampersand() {
+        assert!(!is_safe_filename("file&cmd"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_newline() {
+        assert!(!is_safe_filename("file\nname"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_carriage_return() {
+        assert!(!is_safe_filename("file\rname"));
+    }
+
+    #[test]
+    fn is_safe_filename_rejects_null_byte() {
+        assert!(!is_safe_filename("file\0name"));
+    }
+}
