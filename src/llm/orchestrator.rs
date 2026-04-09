@@ -56,9 +56,9 @@ pub fn is_autonomous(mode: &str) -> bool {
 }
 
 impl LlmOrchestrator {
-    pub fn new(state: Arc<AppState>) -> Self {
-        let bridge = LlmBridge::new(Arc::clone(&state));
-        Self { bridge, state }
+    pub fn new(state: Arc<AppState>) -> Option<Self> {
+        let bridge = LlmBridge::new(Arc::clone(&state))?;
+        Some(Self { bridge, state })
     }
 
     /// Get the current LLM mode from config.

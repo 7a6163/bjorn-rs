@@ -63,21 +63,37 @@ async fn run(target: &Target, state: &Arc<AppState>) -> ActionOutcome {
         let find_expr = find_args.join(" -o ");
         let find_cmd = format!("find / -type f \\( {find_expr} \\) 2>/dev/null");
 
-        // Use expect-like approach via shell
-        let script = format!(
-            r#"{{ echo "{user}"; sleep 1; echo "{password}"; sleep 1; echo "{find_cmd}"; sleep 3; echo "exit"; }} | telnet {ip} 2>/dev/null"#,
+        // Pipe login sequence through stdin to telnet — no shell interpolation.
+        // This avoids command injection via user/password/ip values.
+        use tokio::io::AsyncWriteExt;
+        use tokio::process::Command as TokioCommand;
+
+        let login_sequence = format!(
+            "{user}\n{password}\n{find_cmd}\nexit\n",
             user = user,
             password = password,
             find_cmd = find_cmd,
-            ip = target.ip,
         );
 
-        let result = timeout(
-            Duration::from_secs(60),
-            tokio::process::Command::new("sh")
-                .args(["-c", &script])
-                .output(),
-        )
+        let result = timeout(Duration::from_secs(60), async {
+            let mut child = TokioCommand::new("telnet")
+                .arg(&target.ip)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()?;
+
+            if let Some(mut stdin) = child.stdin.take() {
+                // Small delays between writes to let telnet process prompts
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                let _ = stdin.write_all(login_sequence.as_bytes()).await;
+                let _ = stdin.flush().await;
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                drop(stdin);
+            }
+
+            child.wait_with_output().await
+        })
         .await;
 
         if let Ok(Ok(output)) = result {

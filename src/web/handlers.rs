@@ -225,11 +225,11 @@ pub async fn netkb_data(State(state): State<Arc<AppState>>) -> impl IntoResponse
                 let alive_str = if host.alive { "1" } else { "0" };
                 html.push_str(&format!(
                     r#"<tr{row_class}><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
-                    host.mac_address,
-                    host.ip,
-                    host.hostname.as_deref().unwrap_or(""),
+                    html_escape(&host.mac_address),
+                    html_escape(&host.ip),
+                    html_escape(host.hostname.as_deref().unwrap_or("")),
                     alive_str,
-                    host.ports
+                    html_escape(&host.ports)
                 ));
             }
             html.push_str("</tbody></table>");
@@ -518,7 +518,15 @@ pub async fn save_config(
     }
 
     // Write back
-    let json_str = serde_json::to_string_pretty(&current).unwrap_or_default();
+    let json_str = match serde_json::to_string_pretty(&current) {
+        Ok(s) => s,
+        Err(e) => {
+            return err_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to serialize config: {e}"),
+            );
+        }
+    };
     if let Err(e) = fs::write(config_path, &json_str).await {
         return err_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
     }
@@ -537,15 +545,15 @@ pub struct WifiParams {
 }
 
 pub async fn connect_wifi(Json(params): Json<WifiParams>) -> impl IntoResponse {
-    // Sanitize: reject newlines/control chars that could inject nmconnection sections
-    if params.ssid.contains('\n')
-        || params.ssid.contains('\r')
-        || params.password.contains('\n')
-        || params.password.contains('\r')
-    {
+    // Sanitize: reject chars that could inject nmconnection sections or keys
+    let has_unsafe_chars = |s: &str| {
+        s.chars()
+            .any(|c| c == '\n' || c == '\r' || c == '=' || c == '[' || c == ']' || c.is_control())
+    };
+    if has_unsafe_chars(&params.ssid) || has_unsafe_chars(&params.password) {
         return err_response(
             StatusCode::BAD_REQUEST,
-            "SSID and password must not contain newlines",
+            "SSID and password must not contain control characters, '=', '[', or ']'",
         );
     }
 
@@ -838,8 +846,48 @@ pub async fn restore_backup(
         );
     }
 
-    // Extract zip to BJORN_ROOT
+    // Validate archive contents — reject any entry with path traversal
     let root = &state.paths.root;
+    let list_result = Command::new("unzip")
+        .args(["-l", upload_path.to_str().unwrap_or_default()])
+        .output()
+        .await;
+
+    match &list_result {
+        Ok(output) if output.status.success() => {
+            let listing = String::from_utf8_lossy(&output.stdout);
+            for line in listing.lines() {
+                // unzip -l output has filenames in the last column after the date
+                let trimmed = line.trim();
+                if trimmed.contains("..") {
+                    let _ = fs::remove_file(&upload_path).await;
+                    return err_response(
+                        StatusCode::BAD_REQUEST,
+                        "archive contains path traversal entries (..)",
+                    );
+                }
+            }
+        }
+        Ok(output) => {
+            let _ = fs::remove_file(&upload_path).await;
+            return err_response(
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "invalid archive: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ),
+            );
+        }
+        Err(e) => {
+            let _ = fs::remove_file(&upload_path).await;
+            return err_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to run unzip: {e}"),
+            );
+        }
+    }
+
+    // Safe to extract — no path traversal entries
     let result = Command::new("unzip")
         .args([
             "-o",
@@ -852,7 +900,6 @@ pub async fn restore_backup(
 
     match result {
         Ok(output) if output.status.success() => {
-            // Reload config after restore
             state.reload_config();
             ok("restore completed successfully")
         }
@@ -881,7 +928,16 @@ pub async fn llm_chat(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LlmChatRequest>,
 ) -> impl IntoResponse {
-    let bridge = crate::llm::bridge::LlmBridge::new(Arc::clone(&state));
+    let bridge = match crate::llm::bridge::LlmBridge::new(Arc::clone(&state)) {
+        Some(b) => b,
+        None => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": "Failed to initialize LLM client",
+            }))
+            .into_response();
+        }
+    };
     let system = "You are Bjorn, an autonomous cyber-security assistant running on a Raspberry Pi. Help the user understand the network state and suggest actions.";
 
     match bridge.complete(system, &req.message, req.use_tools).await {

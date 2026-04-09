@@ -232,7 +232,9 @@ impl NetworkScanner {
             let ip = ip.clone();
             let sem = semaphore.clone();
             handles.push(tokio::spawn(async move {
-                let _permit = sem.acquire().await.expect("semaphore closed");
+                let Ok(_permit) = sem.acquire().await else {
+                    return None;
+                };
                 let addr = format!("{ip}:{port}");
                 match timeout(Duration::from_secs(2), TcpStream::connect(&addr)).await {
                     Ok(Ok(_)) => Some(port),

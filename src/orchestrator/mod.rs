@@ -137,7 +137,9 @@ impl Orchestrator {
                 };
 
                 // Execute with semaphore
-                let _permit = self.semaphore.acquire().await.expect("semaphore closed");
+                let Ok(_permit) = self.semaphore.acquire().await else {
+                    break;
+                };
                 self.update_status(action.name(), &host.ip).await;
                 let outcome = action.execute(&target, &self.state).await;
                 let status_str = match &outcome {
@@ -160,7 +162,9 @@ impl Orchestrator {
                             if !self.should_run_action(host.id, child.name()).await {
                                 continue;
                             }
-                            let _permit = self.semaphore.acquire().await.expect("semaphore closed");
+                            let Ok(_permit) = self.semaphore.acquire().await else {
+                                break;
+                            };
                             self.update_status(child.name(), &host.ip).await;
                             let child_outcome = child.execute(&target, &self.state).await;
                             let child_status = match &child_outcome {
@@ -195,7 +199,9 @@ impl Orchestrator {
                 }
 
                 // Check parent succeeded
-                let parent_name = action.parent().unwrap();
+                let Some(parent_name) = action.parent() else {
+                    continue;
+                };
                 if !self.has_parent_succeeded(host.id, parent_name).await {
                     continue;
                 }
@@ -212,7 +218,9 @@ impl Orchestrator {
                     ports,
                 };
 
-                let _permit = self.semaphore.acquire().await.expect("semaphore closed");
+                let Ok(_permit) = self.semaphore.acquire().await else {
+                    break;
+                };
                 self.update_status(action.name(), &host.ip).await;
                 let outcome = action.execute(&target, &self.state).await;
                 let status_str = match &outcome {
@@ -291,7 +299,9 @@ impl Orchestrator {
 
             let ports = parse_ports(&host.ports);
 
-            let _permit = self.semaphore.acquire().await.expect("semaphore closed");
+            let Ok(_permit) = self.semaphore.acquire().await else {
+                break;
+            };
             let success = self.vuln_scanner.scan_host(host.id, &host.ip, &ports).await;
             let status = if success { "success" } else { "failed" };
             let _ = self

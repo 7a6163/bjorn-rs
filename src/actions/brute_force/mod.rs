@@ -106,7 +106,9 @@ impl<C: Connector> BruteForceAction<C> {
                     };
                 }
 
-                let _permit = semaphore.acquire().await.expect("semaphore closed");
+                let Ok(_permit) = semaphore.acquire().await else {
+                    return ActionOutcome::Failed("interrupted".to_string());
+                };
                 let success = self
                     .connector
                     .try_connect(&target.ip, self.target_port, user, password)

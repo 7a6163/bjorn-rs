@@ -102,6 +102,10 @@ async fn steal_via_smb(
     let mut total = 0;
 
     for share in &shares {
+        if !is_safe_share_name(share) {
+            tracing::warn!(share = %share, "skipping share with unsafe name");
+            continue;
+        }
         // Step 2: List files in share recursively
         let list_output = tokio::process::Command::new("smbclient")
             .args([
@@ -165,10 +169,19 @@ async fn steal_via_smb(
     Ok(total)
 }
 
+/// Reject share names with anything other than alphanumeric, underscore, hyphen, dot.
+fn is_safe_share_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
 /// Reject filenames with shell metacharacters or path traversal.
 fn is_safe_filename(name: &str) -> bool {
     !name.is_empty()
         && !name.contains("..")
+        && !name.contains('/')
         && !name.contains(';')
         && !name.contains('`')
         && !name.contains('$')

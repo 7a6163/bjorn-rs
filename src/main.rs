@@ -107,7 +107,10 @@ async fn web_task(state: Arc<AppState>) {
 
 /// LLM autonomous task (only active when llm_mode = "autonomous").
 async fn llm_task(state: Arc<AppState>) {
-    let llm_orch = llm::orchestrator::LlmOrchestrator::new(Arc::clone(&state));
+    let Some(llm_orch) = llm::orchestrator::LlmOrchestrator::new(Arc::clone(&state)) else {
+        tracing::warn!("failed to initialize LLM client, LLM task disabled");
+        return;
+    };
     llm_orch.run_autonomous().await;
 }
 
@@ -123,6 +126,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(arg) = std::env::args().nth(1) {
         if arg == "--version" || arg == "-V" {
             println!("bjorn {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        if arg == "--help" || arg == "-h" {
+            println!("Usage: bjorn [--version]");
+            println!("Autonomous network scanning and vulnerability assessment tool");
             return Ok(());
         }
     }

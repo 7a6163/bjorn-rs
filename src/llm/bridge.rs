@@ -208,13 +208,13 @@ pub fn parse_openai_response(body: &Value) -> Option<String> {
 // -- LlmBridge implementation (uses pure functions above + HTTP I/O) --
 
 impl LlmBridge {
-    pub fn new(state: Arc<AppState>) -> Self {
+    pub fn new(state: Arc<AppState>) -> Option<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(60))
             .build()
-            .expect("failed to build HTTP client");
+            .ok()?;
 
-        Self { client, state }
+        Some(Self { client, state })
     }
 
     /// Check if LLM is enabled in config.
