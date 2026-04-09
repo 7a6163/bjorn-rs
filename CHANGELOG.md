@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0-alpha.6] - 2026-04-09
+
+### Security
+- **CRITICAL**: Fix command injection in telnet exfiltration (replaced `sh -c` with stdin piping)
+- **CRITICAL**: Fix XSS in `/netkb_data` endpoint (HTML-escape all host fields)
+- **CRITICAL**: Fix path traversal in backup restore (validate zip contents before extraction)
+- **HIGH**: Replace all `unwrap()`/`expect()` in production paths with safe alternatives
+- **HIGH**: Add SMB share name validation (`is_safe_share_name()`)
+- **HIGH**: Strengthen WiFi SSID/password validation (reject `=`, `[`, `]`, control chars)
+- **HIGH**: Add `/` check to `is_safe_filename()`
+- **HIGH**: `LlmBridge::new()` returns `Option` instead of panicking
+
+### Added
+- 480 tests (up from 15), 65% code coverage
+- Orchestrator scheduling extracted to pure testable functions
+- Sentinel detection extracted to pure testable functions
+- LLM bridge request/response builders extracted to pure functions
+- 35 web handler integration tests
+- Codecov integration with CI badge
+
+### Fixed
+- Silent config destruction on serialization failure (now returns error)
+- Collapsible nested `if` in `main.rs` (clippy)
+
 ## [1.0.0-alpha.5] - 2026-04-02
 
 ### Added

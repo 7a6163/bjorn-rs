@@ -1,6 +1,6 @@
 [package]
 name = "bjorn"
-version = "1.0.0-alpha.5"
+version = "1.0.0-alpha.6"
 edition = "2024"
 description = "Autonomous network scanning and vulnerability assessment tool for Raspberry Pi"
 license = "MIT"
